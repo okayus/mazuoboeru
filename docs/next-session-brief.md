@@ -10,12 +10,13 @@
 ## いまの状態（What）
 - **ADR-0003 accepted**: デプロイ = Workers Builds（キーレス、GitHub Secrets に CF トークンなし）／push・PR = ホスト側リレー + GitHub App（コンテナは commit まで、`claude/*` のみ）／リポ = **public**・main は ruleset 保護（required check = `ci`）／本番アプリ秘密 = Worker Secrets・dev は dev 専用 OAuth クライアント／コンテナ内 `wrangler login` 廃止。
 - **Phase A 完了**（2026-06-11）: 設計ドキュメントを `apps/web` 同梱構成に統一（tech-stack / roadmap / README）、`deploy.yml` 廃止 → typecheck+build のみの `ci.yml`、dev-environment のセットアップ順・CLAUDE.md 規約を ADR-0003 に整合。
-- 骨格はローカル動作・**未コミット・remote なし**・`database_id` はダミーのまま（**初回 push 前に実値へ**＝skeleton ルール）。
+- **Phase B 完了**（2026-06-11）: リポ https://github.com/okayus/mazuoboeru（public・main ruleset: PR 必須 + required check `ci`・force push 禁止・bypass なし）／ D1 `mazuoboeru-db`（`database_id` 反映済み）／ GitHub App `mazuoboeru-relay`（App ID 4024233・Installation ID 139504528・秘密鍵と設定はホストの `~/.config/mazuoboeru-relay/`、コンテナ非マウント）／ Workers Builds 接続（root `apps/web`・build/deploy command・D1 Edit 入りカスタムトークン）→ **本番 `/health` 200**。
+- 本番実 URL は **`mazuoboeru.toshiaki-mukai-9981.workers.dev`**（account subdomain 由来。subdomain を変えるなら Phase 1 の OAuth/RP_ID 固定前。CLAUDE.md 未決定欄参照）。
+- Phase B 完了を反映したドキュメント更新（CLAUDE.md・本ファイル）は**未コミットの working tree 変更**として意図的に残してある → **Phase C リレー E2E の初荷**（`claude/*` ブランチ → PR）にする。
 - `.claude/settings.json` の deny（commit/push）は**まだ緩めていない**（リレー稼働後に「push のみ deny」へ）。
 
-## 次にやること（順序が重要）
-1. **Phase B（人手・各一度きり）**: `docs/dev-environment.md` セットアップ順 **3〜6** を 1 ステップずつ伴走し完了を検証する（d1 create → public リポ・初回 push・ruleset → GitHub App → Workers Builds 接続）。**トークン類の発行・登録はすべて人手**。エージェントは手順提示・検証・設定値の確認のみ。
-2. **Phase C（エージェント）**: ホスト側リレー構築（`claude/*` の新規 commit 検知 → 1h installation token 発行 → push → PR 作成。main・パターン外・force push は拒否）→ 無人 E2E（コンテナ commit → 自動 push → PR → CI green → merge → Workers Builds → 本番 `/health` 200）→ settings.json deny 緩和と CLAUDE.md 規約の最終化 → okayus-skills へ還元（候補名: `cloudflare-workers-builds-keyless-deploy` / `sandboxed-agent-git-relay`）。
+## 次にやること
+**Phase C（エージェント）**: ホスト側リレー構築（`claude/*` の新規 commit 検知 → 1h installation token 発行 → push → PR 作成。main・パターン外・force push は拒否。設定は `~/.config/mazuoboeru-relay/config.env`）→ 無人 E2E（コンテナ commit → 自動 push → PR → CI green → merge → Workers Builds → 本番 `/health` 200。初荷は上記の未コミットのドキュメント更新）→ settings.json deny 緩和と CLAUDE.md 規約の最終化 → okayus-skills へ還元（候補名: `cloudflare-workers-builds-keyless-deploy` / `sandboxed-agent-git-relay`）。
 
 ## 再議論しないこと（ADR-0003 で確定済み）
 - 「キーレスで消す ＞ 秘密管理基盤から注入」の優先。平文クレデンシャルをサンドボックスに入れない。
@@ -34,12 +35,11 @@
 ゴール: ADR-0003 のシークレット戦略を実働させ、「コンテナ内 Claude が 計画→実装→test/lint→PR を
 自律で回し、main には直接触れない」基盤を完成させる。
 
-進め方:
-1. Phase B: 人手セレモニー（dev-environment.md セットアップ順 3〜6）を1ステップずつ案内し、
-   各ステップの完了を検証する（database_id 反映 → public リポ・ruleset → GitHub App → Workers Builds）。
-2. Phase C: ホスト側リレーを構築し、無人 E2E
+進め方（Phase B は完了済み。リレーの設定は ~/.config/mazuoboeru-relay/config.env と app.pem）:
+1. ホスト側リレーを構築し、無人 E2E
    「コンテナ commit → 自動 push → PR → CI green → merge → Workers Builds → 本番 /health 200」を通す。
-3. 通ったら .claude/settings.json の deny を git push のみへ緩和し、CLAUDE.md の git 規約を最終化、
+   E2E の初荷は working tree に残してある Phase B 完了のドキュメント更新（claude/* ブランチに乗せる）。
+2. 通ったら .claude/settings.json の deny を git push のみへ緩和し、CLAUDE.md の git 規約を最終化、
    確立手順を okayus-skills に還元する。
 
 制約:
