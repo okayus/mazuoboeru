@@ -1,0 +1,8 @@
+# Copy to .dev.vars and fill values. .dev.vars is gitignored.
+
+# Session signing key (later phase, not needed at skeleton)
+SESSION_SECRET=
+
+# WebAuthn / OAuth Relying Party (localhost for dev; prod uses wrangler.jsonc vars)
+RP_ID=localhost
+ORIGIN=http://localhost:5173

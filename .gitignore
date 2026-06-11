@@ -1,0 +1,27 @@
+# dependencies / build artifacts
+node_modules/
+dist/
+build/
+.wrangler/
+*.log
+
+# pnpm content-addressable store (created project-local in the container for
+# cross-filesystem hardlinks; never commit it — the lockfile is the source of truth)
+.pnpm-store/
+
+# env / secrets (never commit)
+.dev.vars
+.env
+.env.*
+!.dev.vars.example
+
+# local-only dev sandbox overrides (host-specific paths, e.g. skills mount)
+docker-compose.override.yml
+
+# Claude Code per-user overrides (project defaults live in .claude/settings.json
+# and .mcp.json which ARE committed).
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+*.swp

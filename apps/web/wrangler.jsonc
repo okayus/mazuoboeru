@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mazuoboeru",
+  "compatibility_date": "2025-03-28",
+  "main": "./worker/index.ts",
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "vars": {
+    // Initially localhost; Phase 4 (setup-order) locks these to the real production hostname
+    // mazuoboeru.workers.dev. Once locked, NEVER change RP_ID — it invalidates every WebAuthn credential.
+    "RP_ID": "localhost",
+    "ORIGIN": "http://localhost:5173"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mazuoboeru-db",
+      "database_id": "f9c54ba1-bb1e-46ad-835a-18efb909cf7b",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "triggers": {
+    "crons": ["15 * * * *"]
+  }
+}

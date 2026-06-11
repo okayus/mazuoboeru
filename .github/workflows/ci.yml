@@ -1,0 +1,34 @@
+# test/lint/typecheck のみ。デプロイは Workers Builds（Cloudflare 側）が担う＝
+# このリポの Actions に Cloudflare の secret は存在しない（docs/adr/0003-secrets-strategy.md）。
+# main の ruleset はこのワークフローの job 名 `ci` を required check に指定する。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -r run check
+      - name: Build
+        run: pnpm -r run build
+      # test / lint スクリプトが生えたらここに追加する（pnpm -r run test / lint）

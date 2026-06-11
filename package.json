@@ -1,0 +1,14 @@
+{
+  "name": "mazuoboeru",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @mazuoboeru/web dev",
+    "build": "pnpm --filter @mazuoboeru/web build",
+    "deploy": "pnpm --filter @mazuoboeru/web run deploy",
+    "check": "pnpm --filter @mazuoboeru/web check",
+    "db:migrate": "pnpm --filter @mazuoboeru/web db:migrate",
+    "db:migrate:prod": "pnpm --filter @mazuoboeru/web db:migrate:prod"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": { "node": ">=20" }
+}

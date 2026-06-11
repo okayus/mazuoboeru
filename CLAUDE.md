@@ -1,0 +1,78 @@
+# まず覚える (mazuoboeru) — プロジェクト指示
+
+> 学んだことをクイズ化して反復で覚える学習 Web アプリ。**クイズは必ず公開**され、
+> **全ユーザーが他人のクイズに挑戦できる**＝マルチユーザーの公開サービス。
+
+このファイルは、コンテナ内も含めどの Claude セッションでも最初に読む前提の要約。
+詳細は `docs/`（このファイルは目次＋働き方の規約）。
+
+## まず読むドキュメント
+
+- `README.md` — 概要と目次
+- `CONTEXT.md` — 用語集（`/grill-with-docs` 由来。混同を避けたい語彙の正典）
+- `docs/adr/` — 根幹判断の ADR（後戻りしにくい決定の理由つき記録）
+- `docs/concept.md` — 名前の由来（まず覚える）・「必ず公開」の思想
+- `docs/features.md` — 機能（クイズ作成・挑戦・採点・復習SRS・発見）
+- `docs/security.md` — セキュリティ（**最重要**：マルチユーザー・UGC のサニタイズ・モデレーション）
+- `docs/tech-stack.md` / `docs/data-model.md` — 技術選定とデータモデル
+- `docs/dev-environment.md` — 開発環境・Cloudflare認証・デプロイ骨格
+- `docs/roadmap.md` — フェーズと「決めること」
+
+## このプロジェクトの本質（kokemusu との違いを忘れない）
+
+- **マルチユーザーの公開サービス**。1つの共有サービスを大勢が使う（kokemusu の「各自セルフホスト・完全プライベート」とは対極）。
+- **クイズは必ず公開**（非公開オプションを作らない）。これは意図的な設計制約（理由は `docs/concept.md`、ADR 候補）。
+- **他人のコンテンツ（UGC）を表示する** → XSS サニタイズ・モデレーションが中心課題。
+- 公開なのはクイズ本体。**個人の学習履歴・成績・メールアドレスは非公開**。
+
+## 確定済み / 既定の決定（2026-06-08 グリル後）
+
+- **デプロイ: 案A = Cloudflare Workers + D1**（kokemusu を踏襲。ただし**単一の共有デプロイ**＝SaaS であって per-user セルフホストではない）。
+- **フロント = React 19 + Vite + TS / API = Hono / DB = D1 + Drizzle**。
+- 開発はサンドボックス（Docker + egress ファイアウォール）内。ホスト側 dev ポートは **5373**（5173/5273 は他プロジェクトと衝突）。
+- **認証**: Web は OAuth (Google + GitHub)、CLI/AI エージェントは PAT (Bearer)。`arctic` + 自前 middleware。Passkey は MVP 範囲外（Phase 2 候補）。同一 verified email は自動リンク。詳細: `docs/adr/0001-auth-via-oauth-and-pat.md`。
+- **本番ドメイン**: `mazuoboeru.workers.dev`（Day 1 固定。custom domain への移行は redirect URI 追加で後付け可）。
+- **「必ず公開」**: 状態は `draft` / `published` / `hidden` の3値、`private` なし。`draft` → `published` は明示・不可逆。公開後の編集は軽微は自由・重大は UI 警告、削除はソフト。詳細: `docs/adr/0002-publish-flow-and-edit-rules.md`。
+- **設問形式 MVP**: `mcq_single` + `mcq_multi`（strict 採点）のみ。`boolean` / `short` / `cloze` は Phase 2 候補。
+- **モデレーション MVP**: 通報チャネル（ボタン + endpoint + テーブル + rate limit）のみ。Discord 通知・admin UI は Phase 2〜4。
+- **リポ構成**: pnpm workspaces（globs: `apps/*` `packages/*`）、パッケージ名 `@mazuoboeru/*`。
+  - **歩く骨格では `apps/web`（`@mazuoboeru/web`）に SPA＋Worker＋wrangler.jsonc を同梱**（`@cloudflare/vite-plugin` が web と worker を1つの Worker にビルドするため）。設計初期に想定した独立 `server/` は apps/web/worker に内包＝**当面 `server/` パッケージは作らない**（要なら後で分離検討。2026-06-11 確定、設計ドキュメント側も同梱に統一済み）。`apps/cli`・`packages/{core,db}` はロジック発生時に追加（skeleton 方針）。
+  - node: サンドボックスは node20。CI(ci.yml) は node22。engines は `>=20`。完全一致が要るなら sandbox を node:22 に上げる（任意）。pnpm はコンテナ再作成のたび `npm i -g pnpm@9.15.0`（corepack enable は /usr/local/bin 権限不足で不可）。
+- **Claude Code ツールセット**（2026-06-08 整備）:
+  - `.claude/settings.json`（プロジェクト共有）: pnpm / wrangler dev / wrangler d1 / git の読み取り系 / gh の読み取り系 / 一部 WebFetch を allowlist。`git commit` / `git push` は deny（**ホスト側で行う規約** の execution-level 担保。ADR-0003 のリレー稼働後は `git push` のみ deny へ緩和予定）。
+  - `.mcp.json`（プロジェクト共有）: Cloudflare 公式 MCP は **`cloudflare-docs` の1つだけ**（認証不要・ドキュメント検索）。bindings/builds/observability は wrangler と機能が被り、認証(OAuth)の callback がコンテナで不安定なので**入れない**（2026-06-08 に docs-only へ trim）。アカウント操作は wrangler（settings で許可済み）で行う。
+  - サンドボックス firewall に `developers.cloudflare.com` と `docs.mcp.cloudflare.com` を追加（`.docker/init-firewall.sh`）。**反映には `docker compose down && docker compose build && docker compose up -d`（プロジェクトディレクトリで、`-f` を付けず＝override 自動ロード）が必要**。
+  - `init-firewall.sh` の canonical 差分は「dig リトライ」「`ipset -exist`」の2点のみ。
+- **シークレット戦略（2026-06-11、ADR-0003）**: デプロイは **Workers Builds**（キーレス。GitHub Secrets に CF トークンを置かない。D1 Edit 入りカスタムビルドトークンを CF 側 Build 設定に登録）。push/PR は**ホスト側リレー + GitHub App**（コンテナは commit まで、`claude/*` ブランチのみ）。リポは **public**・main は ruleset 保護（PR 必須 + required check = `ci`）。本番アプリ秘密は Cloudflare Worker Secrets（コードは名前参照のみ）、dev は dev 専用 OAuth クライアントを `.dev.vars`。**コンテナ内 `wrangler login` はしない**（ローカルモード専用）。詳細: `docs/adr/0003-secrets-strategy.md`。
+- **未決定（持ち越し）**: 短答採点の正規化方針（Phase 2 で `short` 追加時に再開）、custom domain の購入と移行タイミング。
+
+## 働き方の規約（重要）
+
+- **TypeScript は関数のみで書く。`class` を使わない。** ドメインロジックは純粋関数、I/O は境界へ。
+- **デプロイ基盤を先に通してからロジックを載せる**（「歩く骨格」: `main` push → 本番 `/health` 200 ＆ SPA 表示）。
+- **git: コンテナ内は commit まで、push/PR はホスト側リレーが代行**（GitHub App・`claude/*` ブランチのみ。ADR-0003）。リレー稼働までは従来どおり commit/push ともホスト側（settings.json の deny 緩和もリレー稼働後）。
+- 採点・正誤判定は**必ずサーバー側**で（クライアントに正解を渡してから採点しない＝カンニング/不正防止）。
+- 他ユーザーのクイズ表示は**サニタイズ必須**（DOMPurify 等）。Markdown を許すなら生 HTML は禁止。
+- Claude Code 自体の機能・設定で不明な点は https://code.claude.com/docs/llms.txt を WebFetch して確認する。
+
+## 参照スキル（okayus-skills）
+
+Cloudflare 関連手順は `okayus-skills` のスキルに集約（リポジトリ外。コンテナには override マウントで `~/.claude/skills:ro` として見える）。
+
+- `claude-code-docker-sandbox` — 開発サンドボックス（構築済み）
+- `cloudflare-workers-deploy-skeleton` — SPA+API+Cron の歩く骨格（生成済み。デプロイ経路は ADR-0003 で Workers Builds に変更）
+- `cloudflare-api-token-permissions` — CI デプロイ用トークンの最小権限（ADR-0003 後はフォールバック専用）
+- `cloudflare-d1-drizzle-migration` — D1 で drizzle-kit を安全に（実スキーマ投入時に必読）
+- `cloudflare-workers-e2e-playwright` — e2e（認証含む）
+- `cloudflare-workers-bot-scan-defense` — 認証/投稿 route のレート制限（**公開サービスなので重要**）
+- `cloudflare-d1-weekly-backup-via-pr` — D1 週次バックアップ
+
+## 次のアクション
+
+1. ~~okayus-skills 確認＆再ビルド、firewall 反映~~ → **完了**（2026-06-08）。
+2. ~~MCP の認証~~ → **完了/確定**（`cloudflare-docs` のみ・認証不要・✓ Connected）。
+3. ~~シークレット戦略の調査・決定・ドキュメント整合~~ → **完了**（2026-06-11、`docs/adr/0003-secrets-strategy.md`。deploy.yml → ci.yml 化済み）。
+4. **Phase B（人手セレモニー・各一度きり）**: `wrangler d1 create` → `database_id` 反映 → public リポ作成・初回 push・main ruleset → GitHub App 作成 → Workers Builds 接続（手順: `docs/dev-environment.md` のセットアップ順 3〜6）。
+5. **Phase C（エージェント）**: ホスト側リレー構築 → 無人 E2E（commit → push → PR → CI green → merge → Workers Builds → 本番 `/health` 200）→ settings.json deny 緩和 → okayus-skills へ還元。
+
+作る前の考慮事項の整理には `/grill-with-docs` を使い、用語を `CONTEXT.md`・後戻りしにくい決定を `docs/adr/` に落とす。
