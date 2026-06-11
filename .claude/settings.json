@@ -27,6 +27,10 @@
       "Bash(git branch:*)",
       "Bash(git show:*)",
       "Bash(git remote -v:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr diff:*)",
@@ -38,8 +42,7 @@
       "WebFetch(domain:docs.mcp.cloudflare.com)"
     ],
     "deny": [
-      "Bash(git push:*)",
-      "Bash(git commit:*)"
+      "Bash(git push:*)"
     ]
   },
   "enableAllProjectMcpServers": false
