@@ -84,10 +84,10 @@ done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 # Do NOT add sentry.io or VS Code Marketplace domains here: they can
 # intermittently fail DNS and take the container down, and the compose env
 # (DISABLE_ERROR_REPORTING=1) means Claude Code won't contact Sentry anyway.
-# statsig.anthropic.com is allowed BELOW as an OPTIONAL domain (2026-06-12,
-# feature flags that drive the /model picker roster, e.g. Fable 5): resolution
-# failure logs a warning instead of killing the container — keep it out of
-# this fatal list.
+# Statsig domains are allowed BELOW as OPTIONAL (2026-06-12): resolution
+# failure logs a warning instead of killing the container — keep them out of
+# this fatal list. Note: "statsig.anthropic.com" does NOT exist (no A record;
+# stale info from an old comment) — do not re-add it anywhere.
 #
 # LANGUAGE TOOLCHAINS: the compiler/runtime itself is installed at image BUILD
 # time (see Dockerfile INSTALL_RUST / INSTALL_HASKELL), before this firewall
@@ -143,12 +143,19 @@ done
 # ─────────────────────────────────────────────────────────────────────────────
 # OPTIONAL domains: nice-to-have egress that must never block container start.
 # The fatal list above would `exit 1` and stop the container — the reason
-# telemetry domains were excluded historically. statsig.anthropic.com carries
-# Claude Code feature flags (the /model picker roster, e.g. Fable 5) and usage
-# telemetry; without it the picker silently hides flag-gated models.
+# telemetry domains were excluded historically. These are Statsig endpoints
+# (Claude Code usage telemetry; all currently resolve to one anycast IP).
+# Empirical note (2026-06-12): the /model picker roster (e.g. Fable 5) needs
+# DISABLE_TELEMETRY to be unset (compose env) but worked even without this
+# egress — gates arrive via api.anthropic.com. These entries mainly let
+# telemetry uploads succeed instead of being REJECTed.
 # ─────────────────────────────────────────────────────────────────────────────
 for domain in \
-    "statsig.anthropic.com"; do
+    "statsig.com" \
+    "api.statsig.com" \
+    "featuregates.org" \
+    "statsigapi.net" \
+    "prodregistryv2.org"; do
     echo "Resolving optional $domain..."
     ips=""
     for attempt in 1 2 3; do
