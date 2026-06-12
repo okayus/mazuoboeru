@@ -81,10 +81,13 @@ done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 #   *.cloudflare.com    → only if you deploy to Cloudflare; drop otherwise
 # Add e.g. registry.yarnpkg.com, a private registry, or a runtime CDN as needed.
 #
-# Do NOT re-add Anthropic's telemetry domains (statsig.anthropic.com, sentry.io)
-# or VS Code Marketplace domains here: they can intermittently fail DNS and take
-# the container down, and CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 (set in the
-# compose file) means Claude Code won't contact them anyway.
+# Do NOT add sentry.io or VS Code Marketplace domains here: they can
+# intermittently fail DNS and take the container down, and the compose env
+# (DISABLE_ERROR_REPORTING=1) means Claude Code won't contact Sentry anyway.
+# statsig.anthropic.com is allowed BELOW as an OPTIONAL domain (2026-06-12,
+# feature flags that drive the /model picker roster, e.g. Fable 5): resolution
+# failure logs a warning instead of killing the container — keep it out of
+# this fatal list.
 #
 # LANGUAGE TOOLCHAINS: the compiler/runtime itself is installed at image BUILD
 # time (see Dockerfile INSTALL_RUST / INSTALL_HASKELL), before this firewall
@@ -133,6 +136,37 @@ for domain in \
         # -exist: Cloudflare の MCP/その他ドメインは anycast IP を共有するため、
         # 同じ IP が別ドメインで既に追加済みのことがある。重複追加でも非ゼロ終了させず、
         # set -e でコンテナが落ちないようにする（canonical との差分: dig retry に次ぐ2点目）。
+        ipset add -exist allowed-domains "$ip"
+    done < <(echo "$ips")
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OPTIONAL domains: nice-to-have egress that must never block container start.
+# The fatal list above would `exit 1` and stop the container — the reason
+# telemetry domains were excluded historically. statsig.anthropic.com carries
+# Claude Code feature flags (the /model picker roster, e.g. Fable 5) and usage
+# telemetry; without it the picker silently hides flag-gated models.
+# ─────────────────────────────────────────────────────────────────────────────
+for domain in \
+    "statsig.anthropic.com"; do
+    echo "Resolving optional $domain..."
+    ips=""
+    for attempt in 1 2 3; do
+        ips=$(dig +noall +answer +tries=2 +time=3 A "$domain" | awk '$4 == "A" {print $5}')
+        [ -n "$ips" ] && break
+        echo "  resolve attempt $attempt for optional $domain failed, retrying in 2s..."
+        sleep 2
+    done
+    if [ -z "$ips" ]; then
+        echo "WARN: optional domain $domain not resolved; continuing without it"
+        continue
+    fi
+    while read -r ip; do
+        if [[ ! "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "WARN: invalid IP from DNS for optional $domain: $ip (skipped)"
+            continue
+        fi
+        echo "Adding $ip for $domain"
         ipset add -exist allowed-domains "$ip"
     done < <(echo "$ips")
 done
