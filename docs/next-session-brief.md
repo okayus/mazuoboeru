@@ -10,7 +10,7 @@
 ## いまの状態（What）
 - **自律開発基盤 完成・実証済み**: コンテナ内 Claude が `claude/*` ブランチに commit → ホスト側リレー（systemd user timer 60秒、`~/.config/mazuoboeru-relay/`）が GitHub App の 1h トークンで push・PR 化 → CI green → **人間が merge** → Workers Builds が本番デプロイ。PR #1（無人 E2E）で一周検証済み。
 - **秘密の所在**: 長命秘密は「GitHub App 秘密鍵（ホスト `~/.config/mazuoboeru-relay/`）」と「Cloudflare 内部のビルドトークン」の 2 つだけ。GitHub Actions Secrets は空、サンドボックス内はゼロ。
-- **本番**: https://mazuoboeru.toshiaki-mukai-9981.workers.dev （`/health` 200・SPA 配信・D1 マイグレーション適用済み）。
+- **本番**: https://mazuoboeru.shiraoka.workers.dev （`/health` 200・SPA 配信・D1 マイグレーション適用済み）。
 - **コンテナ内規約（最終形）**: `claude/*` へ `git add/commit/checkout/switch` 可・`git push` は deny。push/PR はリレー任せ（手動操作不要）。
 - スキル還元済み: okayus-skills に `cloudflare-workers-builds-keyless-deploy`・`sandboxed-agent-git-relay`（okayus-skills 側は未コミット、人間がレビューして commit）。
 
