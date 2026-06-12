@@ -52,15 +52,24 @@ services:
     init: true
     tty: true
     stdin_open: true
-    # On every start: program the firewall, refresh global CLIs, keep the container alive.
-    # claude updates via npm (registry.npmjs.org is allowlisted) because the native
-    # auto-updater's download host (downloads.claude.ai) is outside the egress allowlist.
-    # pnpm lives in the container layer and vanishes on recreation, so reinstall it here too.
-    # An update failure must not kill the container — fall back to image-baked versions.
+    # On every start: program the firewall, refresh global CLIs, enforce container-side
+    # Claude defaults, keep the container alive.
+    # - claude updates via npm (registry.npmjs.org is allowlisted) because the native
+    #   auto-updater's download host (downloads.claude.ai) is outside the egress allowlist.
+    # - pnpm lives in the container layer and vanishes on recreation, so reinstall it too.
+    # - defaultMode=bypassPermissions is written into the CONTAINER-scope user settings
+    #   (named volume), NOT the repo-shared .claude/settings.json — host sessions keep
+    #   normal prompting. Safe here because the firewall is the boundary and deny rules
+    #   (git push) still apply in bypass mode.
+    # - No step may kill the container on failure (fall back to image-baked versions).
     command: >
       sh -c "sudo /usr/local/bin/init-firewall.sh &&
              (npm i -g @anthropic-ai/claude-code@latest pnpm@9.15.0 ||
               echo 'WARN: claude/pnpm update failed; using image-baked versions') &&
+             ([ -s /home/node/.claude/settings.json ] || echo '{}' > /home/node/.claude/settings.json) &&
+             (jq '.permissions.defaultMode = \"bypassPermissions\"' /home/node/.claude/settings.json > /tmp/cs.json &&
+              mv /tmp/cs.json /home/node/.claude/settings.json ||
+              echo 'WARN: could not set bypassPermissions default') &&
              exec sleep infinity"
 
 volumes:
