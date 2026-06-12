@@ -51,7 +51,7 @@
 
 - 初回ビルド失敗の原因は **Root directory がセットアップ画面の「詳細設定」アコーディオンに隠れていた**こと（未設定だとリポルートで実行され必ず失敗）。
 - **App ID と Installation ID の取り違え**（インストール URL の数字は installation id）。`GET /apps/<slug>` はプライベート App だと 404、`/user/installations` は App ユーザートークン専用なので、**JWT を作って `GET /app` + `GET /app/installations`** が唯一確実な検証法。
-- **`mazuoboeru.workers.dev` というホスト名は構造上存在しない**（workers.dev は常に `<worker名>.<accountサブドメイン>` の 2 階層）。実 URL は `mazuoboeru.toshiaki-mukai-9981.workers.dev`。account subdomain 改名は全 Worker の URL に波及するため「他サービスへの影響確認後・**Phase 1 の OAuth 登録前**」として持ち越し（CLAUDE.md 未決定欄）。
+- **`mazuoboeru.workers.dev` というホスト名は構造上存在しない**（workers.dev は常に `<worker名>.<accountサブドメイン>` の 2 階層）。実 URL は当時 `mazuoboeru.toshiaki-mukai-9981.workers.dev`。account subdomain 改名は全 Worker の URL に波及するため「他サービスへの影響確認後・**Phase 1 の OAuth 登録前**」として持ち越した（→ **2026-06-12 に `shiraoka` へ改名済み**。現 URL は `mazuoboeru.shiraoka.workers.dev`、旧 URL は失効）。
 
 ## Phase C — ホスト側リレーと無人 E2E（エージェント、2026-06-11〜12）
 
