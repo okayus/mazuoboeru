@@ -32,10 +32,11 @@ services:
       NODE_OPTIONS: "--max-old-space-size=4096"
       CLAUDE_CONFIG_DIR: "/home/node/.claude"
       # 2026-06-12: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC (umbrella for the three
-      # flags below + DISABLE_TELEMETRY) was split so that ONLY Statsig traffic is
-      # re-enabled (DISABLE_TELEMETRY unset): its feature flags drive the /model
-      # picker roster (Fable 5). statsig.anthropic.com is an OPTIONAL firewall domain
-      # (init-firewall.sh). Sentry stays blocked; updates stay npm-at-start (command).
+      # flags below + DISABLE_TELEMETRY) was split so that ONLY Statsig is re-enabled
+      # (DISABLE_TELEMETRY unset). Empirically this alone makes the /model picker list
+      # flag-gated models (Fable 5) — gates arrive via api.anthropic.com. Statsig
+      # endpoints are OPTIONAL firewall domains (init-firewall.sh) so telemetry uploads
+      # also succeed. Sentry stays blocked; updates stay npm-at-start (command).
       DISABLE_AUTOUPDATER: "1"
       DISABLE_FEEDBACK_COMMAND: "1"
       DISABLE_ERROR_REPORTING: "1"
