@@ -149,13 +149,16 @@ done
 # DISABLE_TELEMETRY to be unset (compose env) but worked even without this
 # egress — gates arrive via api.anthropic.com. These entries mainly let
 # telemetry uploads succeed instead of being REJECTed.
+# The mazuoboeru production host (last entry) lets the in-container agent
+# verify deploys directly (e.g. curl /health). It's the public site.
 # ─────────────────────────────────────────────────────────────────────────────
 for domain in \
     "statsig.com" \
     "api.statsig.com" \
     "featuregates.org" \
     "statsigapi.net" \
-    "prodregistryv2.org"; do
+    "prodregistryv2.org" \
+    "mazuoboeru.toshiaki-mukai-9981.workers.dev"; do
     echo "Resolving optional $domain..."
     ips=""
     for attempt in 1 2 3; do
