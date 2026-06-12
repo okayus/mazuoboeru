@@ -52,6 +52,7 @@
 - **デプロイ基盤を先に通してからロジックを載せる**（「歩く骨格」: `main` push → 本番 `/health` 200 ＆ SPA 表示）。
 - **git: コンテナ内は `claude/*` ブランチへの commit まで、push/PR はホスト側リレーが自動代行**（GitHub App・systemd timer 60秒間隔。ADR-0003）。`claude/*` 外・force push はリレーが拒否、main は ruleset でも保護（PR + CI green のみ）。`git push` はコンテナで deny。リレー本体はリポ外 `~/.config/mazuoboeru-relay/`（サンドボックスから改変不能）、ログは `journalctl --user -u mazuoboeru-relay.service`。
   - コンテナ内から PR・CI の状態を見るには **未認証 REST を `curl -s https://api.github.com/...` で叩く**（public リポなので読み取りは認証不要・60 req/h で足りる。例: `repos/okayus/mazuoboeru/commits/<branch>/check-runs`）。`gh` は未認証では動かないので使わない。この curl 形式は allowlist 済み、宛先の強制は egress firewall が担う。
+  - **merge も依頼できる**（2026-06-12、ADR-0003 改訂）: 仕事が完成したら**最終 commit のメッセージ末尾に `Relay-Merge: yes` トレーラー**を付ける → リレーが CI green 後に squash merge し、remote/local ブランチも削除する。トレーラーは **HEAD commit のみ有効**（後から commit を積んだら出し直す）。CI green の強制は ruleset がサーバー側で担うので、CI 完了前に付けても安全（merge が次の tick に延びるだけ）。**迷う変更・影響の大きい変更には付けない**＝従来どおり人間の merge に委ねる。
 - 採点・正誤判定は**必ずサーバー側**で（クライアントに正解を渡してから採点しない＝カンニング/不正防止）。
 - 他ユーザーのクイズ表示は**サニタイズ必須**（DOMPurify 等）。Markdown を許すなら生 HTML は禁止。
 - Claude Code 自体の機能・設定で不明な点は https://code.claude.com/docs/llms.txt を WebFetch して確認する。
