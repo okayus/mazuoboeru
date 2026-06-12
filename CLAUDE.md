@@ -31,7 +31,7 @@
 - **フロント = React 19 + Vite + TS / API = Hono / DB = D1 + Drizzle**。
 - 開発はサンドボックス（Docker + egress ファイアウォール）内。ホスト側 dev ポートは **5373**（5173/5273 は他プロジェクトと衝突）。
 - **認証**: Web は OAuth (Google + GitHub)、CLI/AI エージェントは PAT (Bearer)。`arctic` + 自前 middleware。Passkey は MVP 範囲外（Phase 2 候補）。同一 verified email は自動リンク。詳細: `docs/adr/0001-auth-via-oauth-and-pat.md`。
-- **本番ドメイン**: workers.dev 運用（Day 1 固定方針）。**実 URL は `mazuoboeru.toshiaki-mukai-9981.workers.dev`**（account subdomain 由来。2026-06-11 初デプロイで確定。設計時表記の `mazuoboeru.workers.dev` は存在しない点に注意）。account subdomain を変えるなら Phase 1 の OAuth redirect URI 登録・RP_ID/ORIGIN 固定の**前**に。custom domain への移行は redirect URI 追加で後付け可。
+- **本番ドメイン**: workers.dev 運用（Day 1 固定方針）。**実 URL は `mazuoboeru.shiraoka.workers.dev`**（account subdomain 由来。2026-06-12 に account subdomain を `toshiaki-mukai-9981` → `shiraoka` へ改名済み＝OAuth redirect URI 登録前に完了、旧 URL は失効。設計時表記の `mazuoboeru.workers.dev` は存在しない点に注意）。custom domain への移行は redirect URI 追加で後付け可。
 - **「必ず公開」**: 状態は `draft` / `published` / `hidden` の3値、`private` なし。`draft` → `published` は明示・不可逆。公開後の編集は軽微は自由・重大は UI 警告、削除はソフト。詳細: `docs/adr/0002-publish-flow-and-edit-rules.md`。
 - **設問形式 MVP**: `mcq_single` + `mcq_multi`（strict 採点）のみ。`boolean` / `short` / `cloze` は Phase 2 候補。
 - **モデレーション MVP**: 通報チャネル（ボタン + endpoint + テーブル + rate limit）のみ。Discord 通知・admin UI は Phase 2〜4。
@@ -43,10 +43,11 @@
 - **Claude Code ツールセット**（2026-06-08 整備）:
   - `.claude/settings.json`（プロジェクト共有）: pnpm / wrangler dev / wrangler d1 / git の読み取り系 / gh の読み取り系 / 一部 WebFetch を allowlist。`git push` のみ deny（push/PR はホスト側リレーが代行＝ADR-0003。2026-06-11 のリレー稼働に伴い `git add`/`commit`/`checkout`/`switch` を許可へ緩和済み）。**`gh` が実際に動くのはホストのみ**（コンテナ内は未認証で大半のコマンドが拒否される。GH_TOKEN を入れるのは secret-zero に反するので不可＝2026-06-12 確認）。
   - `.mcp.json`（プロジェクト共有）: Cloudflare 公式 MCP は **`cloudflare-docs` の1つだけ**（認証不要・ドキュメント検索）。bindings/builds/observability は wrangler と機能が被り、認証(OAuth)の callback がコンテナで不安定なので**入れない**（2026-06-08 に docs-only へ trim）。アカウント操作は wrangler（settings で許可済み）で行う。
-  - サンドボックス firewall に `developers.cloudflare.com` と `docs.mcp.cloudflare.com` を追加（`.docker/init-firewall.sh`）。Statsig ドメイン群（statsig.com 等5件、telemetry 送信用）と**本番ホスト `mazuoboeru.toshiaki-mukai-9981.workers.dev`**（コンテナ内からデプロイ検証 `curl -s .../health` ができる。2026-06-12）は **optional 扱い**で追加（解決失敗は警告のみでコンテナは起動継続。なお `statsig.anthropic.com` は A レコード非実在＝旧コメントの誤情報なので使わない）。**反映には `docker compose down && docker compose build && docker compose up -d`（プロジェクトディレクトリで、`-f` を付けず＝override 自動ロード）が必要**。
+  - サンドボックス firewall に `developers.cloudflare.com` と `docs.mcp.cloudflare.com` を追加（`.docker/init-firewall.sh`）。Statsig ドメイン群（statsig.com 等5件、telemetry 送信用）と**本番ホスト `mazuoboeru.shiraoka.workers.dev`**（コンテナ内からデプロイ検証 `curl -s .../health` ができる。2026-06-12）は **optional 扱い**で追加（解決失敗は警告のみでコンテナは起動継続。なお `statsig.anthropic.com` は A レコード非実在＝旧コメントの誤情報なので使わない）。**反映には `docker compose down && docker compose build && docker compose up -d`（プロジェクトディレクトリで、`-f` を付けず＝override 自動ロード）が必要**。
   - `init-firewall.sh` の canonical 差分は「dig リトライ」「`ipset -exist`」「optional ドメイン（statsig・非致命）」の3点。
 - **シークレット戦略（2026-06-11、ADR-0003）**: デプロイは **Workers Builds**（キーレス。GitHub Secrets に CF トークンを置かない。D1 Edit 入りカスタムビルドトークンを CF 側 Build 設定に登録）。push/PR は**ホスト側リレー + GitHub App**（コンテナは commit まで、`claude/*` ブランチのみ）。リポは **public**・main は ruleset 保護（PR 必須 + required check = `ci`）。本番アプリ秘密は Cloudflare Worker Secrets（コードは名前参照のみ）、dev は dev 専用 OAuth クライアントを `.dev.vars`。**コンテナ内 `wrangler login` はしない**（ローカルモード専用）。詳細: `docs/adr/0003-secrets-strategy.md`。
-- **未決定（持ち越し）**: 短答採点の正規化方針（Phase 2 で `short` 追加時に再開）、custom domain の購入と移行タイミング、account subdomain（`toshiaki-mukai-9981`）の改名（2026-06-11 判断: **やる方向だが、同アカウントで他サービス稼働中のため影響確認してから**。変更は全 Worker の URL に波及。**期限: Phase 1 の OAuth 登録・ORIGIN 固定の前**。なお `mazuoboeru.workers.dev` のような subdomain なし URL は構造上不可＝docs 確認済み、きれいな URL の正解は custom domain）。
+- **未決定（持ち越し）**: 短答採点の正規化方針（Phase 2 で `short` 追加時に再開）、custom domain の購入と移行タイミング（なお `mazuoboeru.workers.dev` のような subdomain なし URL は構造上不可＝docs 確認済み、きれいな URL の正解は custom domain）。
+- **account subdomain 改名は完了**（2026-06-12: `toshiaki-mukai-9981` → `shiraoka`、nyalog 側の都合で実施。OAuth redirect URI 登録前＝期限内に完了。mazuoboeru への影響は URL 参照の更新のみで、認証・データへの影響なし）。
 
 ## 働き方の規約（重要）
 

@@ -158,7 +158,7 @@ for domain in \
     "featuregates.org" \
     "statsigapi.net" \
     "prodregistryv2.org" \
-    "mazuoboeru.toshiaki-mukai-9981.workers.dev"; do
+    "mazuoboeru.shiraoka.workers.dev"; do
     echo "Resolving optional $domain..."
     ips=""
     for attempt in 1 2 3; do
