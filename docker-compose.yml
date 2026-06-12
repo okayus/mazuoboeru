@@ -33,6 +33,11 @@ services:
       CLAUDE_CONFIG_DIR: "/home/node/.claude"
       # Stops Claude Code reaching telemetry domains (which aren't in the allowlist).
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+      # Default model. The interactive /model picker can't list Fable in this sandbox:
+      # its roster depends on feature flags from statsig.anthropic.com, which is
+      # deliberately blocked (env above + firewall). The API itself accepts the model,
+      # so an env/--model default works fine; /model can still switch per session.
+      ANTHROPIC_MODEL: "claude-fable-5"
       POWERLEVEL9K_DISABLE_GITSTATUS: "true"
       TZ: Asia/Tokyo
     ports:
