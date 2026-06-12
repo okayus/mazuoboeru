@@ -39,7 +39,7 @@
   - **歩く骨格では `apps/web`（`@mazuoboeru/web`）に SPA＋Worker＋wrangler.jsonc を同梱**（`@cloudflare/vite-plugin` が web と worker を1つの Worker にビルドするため）。設計初期に想定した独立 `server/` は apps/web/worker に内包＝**当面 `server/` パッケージは作らない**（要なら後で分離検討。2026-06-11 確定、設計ドキュメント側も同梱に統一済み）。`apps/cli`・`packages/{core,db}` はロジック発生時に追加（skeleton 方針）。
   - node: サンドボックスは node20。CI(ci.yml) は node22。engines は `>=20`。完全一致が要るなら sandbox を node:22 に上げる（任意）。pnpm はコンテナ再作成のたび `npm i -g pnpm@9.15.0`（corepack enable は /usr/local/bin 権限不足で不可）。
 - **Claude Code ツールセット**（2026-06-08 整備）:
-  - `.claude/settings.json`（プロジェクト共有）: pnpm / wrangler dev / wrangler d1 / git の読み取り系 / gh の読み取り系 / 一部 WebFetch を allowlist。`git push` のみ deny（push/PR はホスト側リレーが代行＝ADR-0003。2026-06-11 のリレー稼働に伴い `git add`/`commit`/`checkout`/`switch` を許可へ緩和済み）。
+  - `.claude/settings.json`（プロジェクト共有）: pnpm / wrangler dev / wrangler d1 / git の読み取り系 / gh の読み取り系 / 一部 WebFetch を allowlist。`git push` のみ deny（push/PR はホスト側リレーが代行＝ADR-0003。2026-06-11 のリレー稼働に伴い `git add`/`commit`/`checkout`/`switch` を許可へ緩和済み）。**`gh` が実際に動くのはホストのみ**（コンテナ内は未認証で大半のコマンドが拒否される。GH_TOKEN を入れるのは secret-zero に反するので不可＝2026-06-12 確認）。
   - `.mcp.json`（プロジェクト共有）: Cloudflare 公式 MCP は **`cloudflare-docs` の1つだけ**（認証不要・ドキュメント検索）。bindings/builds/observability は wrangler と機能が被り、認証(OAuth)の callback がコンテナで不安定なので**入れない**（2026-06-08 に docs-only へ trim）。アカウント操作は wrangler（settings で許可済み）で行う。
   - サンドボックス firewall に `developers.cloudflare.com` と `docs.mcp.cloudflare.com` を追加（`.docker/init-firewall.sh`）。**反映には `docker compose down && docker compose build && docker compose up -d`（プロジェクトディレクトリで、`-f` を付けず＝override 自動ロード）が必要**。
   - `init-firewall.sh` の canonical 差分は「dig リトライ」「`ipset -exist`」の2点のみ。
@@ -51,6 +51,7 @@
 - **TypeScript は関数のみで書く。`class` を使わない。** ドメインロジックは純粋関数、I/O は境界へ。
 - **デプロイ基盤を先に通してからロジックを載せる**（「歩く骨格」: `main` push → 本番 `/health` 200 ＆ SPA 表示）。
 - **git: コンテナ内は `claude/*` ブランチへの commit まで、push/PR はホスト側リレーが自動代行**（GitHub App・systemd timer 60秒間隔。ADR-0003）。`claude/*` 外・force push はリレーが拒否、main は ruleset でも保護（PR + CI green のみ）。`git push` はコンテナで deny。リレー本体はリポ外 `~/.config/mazuoboeru-relay/`（サンドボックスから改変不能）、ログは `journalctl --user -u mazuoboeru-relay.service`。
+  - コンテナ内から PR・CI の状態を見るには **未認証 REST を `curl -s https://api.github.com/...` で叩く**（public リポなので読み取りは認証不要・60 req/h で足りる。例: `repos/okayus/mazuoboeru/commits/<branch>/check-runs`）。`gh` は未認証では動かないので使わない。この curl 形式は allowlist 済み、宛先の強制は egress firewall が担う。
 - 採点・正誤判定は**必ずサーバー側**で（クライアントに正解を渡してから採点しない＝カンニング/不正防止）。
 - 他ユーザーのクイズ表示は**サニタイズ必須**（DOMPurify 等）。Markdown を許すなら生 HTML は禁止。
 - Claude Code 自体の機能・設定で不明な点は https://code.claude.com/docs/llms.txt を WebFetch して確認する。
