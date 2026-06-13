@@ -85,5 +85,6 @@
 - [x] Phase 0：pnpm workspaces 骨格生成 → `cloudflare-workers-deploy-skeleton` で「歩く骨格」を本番 `/health` 200 まで通す（2026-06-11）。
 - [x] 最初の縦切り: 「Google/GitHub ログイン → クイズ作成（`mcq_single`/`mcq_multi`） → 明示公開 → 別アカウントで挑戦 → サーバー採点 → 即時フィードバック」を実装（2026-06-12、`claude/phase1-vertical-slice`。バックエンドは PAT/Bearer で一周検証済み。OAuth 実ブラウザ一周は dev クライアント要）。
 - [x] PAT 発行 UI + Bearer middleware を最初の縦切りに同梱。
-- [ ] デプロイ前提の人手作業（[next-session-brief.md](next-session-brief.md)）: 本番 Worker Secrets（OAuth×4＋`PAT_PEPPER`）・本番 OAuth クライアント・**本番 D1 へ 0001 マイグレーション適用**・dev OAuth クライアント＋`.dev.vars`。
+- [x] **本番 D1 へ 0001 マイグレーション適用**（2026-06-13 実機確認: `/api/public/quizzes` が 500 でなく JSON を返す）。
+- [ ] デプロイ前提の人手作業（[project-status.md](project-status.md) §A）: 本番 OAuth クライアント＋ Worker Secrets（OAuth×4＋`PAT_PEPPER`）、dev OAuth クライアント＋`.dev.vars`。完了で本番ブラウザログインが開通する。
 - [ ] Playwright e2e（`cloudflare-workers-e2e-playwright`）で OAuth 込みの一周を自動化。
