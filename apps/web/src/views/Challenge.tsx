@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import {
   api,
   type AttemptState,
@@ -56,9 +56,11 @@ export function Challenge({ quizId }: { quizId: string }) {
   const total = state.quiz.questions.length;
   const score = Object.values(feedback).filter((f) => f.isCorrect).length;
 
-  const onAnswered = (questionId: string, fb: Feedback) => {
+  // Stable across renders (functional setState needs no deps) so memo(QuestionCard)
+  // can skip the sibling cards when one question's feedback changes.
+  const onAnswered = useCallback((questionId: string, fb: Feedback) => {
     setFeedback((prev) => ({ ...prev, [questionId]: fb }));
-  };
+  }, []);
 
   return (
     <div>
@@ -78,19 +80,19 @@ export function Challenge({ quizId }: { quizId: string }) {
           question={q}
           attemptId={state.attempt.id}
           feedback={feedback[q.id]}
-          onAnswered={(fb) => onAnswered(q.id, fb)}
+          onAnswered={onAnswered}
         />
       ))}
     </div>
   );
 }
 
-function QuestionCard(props: {
+const QuestionCard = memo(function QuestionCard(props: {
   index: number;
   question: PublicQuestion;
   attemptId: string;
   feedback: Feedback | undefined;
-  onAnswered: (fb: Feedback) => void;
+  onAnswered: (questionId: string, fb: Feedback) => void;
 }) {
   const { question, attemptId, feedback } = props;
   const [selected, setSelected] = useState<string[]>([]);
@@ -117,7 +119,7 @@ function QuestionCard(props: {
     setError(null);
     try {
       const r = await api.submitAnswer(attemptId, question.id, selected);
-      props.onAnswered({
+      props.onAnswered(question.id, {
         isCorrect: r.isCorrect,
         correctChoiceIds: r.correctChoiceIds,
         explanation: r.explanation,
@@ -179,4 +181,4 @@ function QuestionCard(props: {
       )}
     </div>
   );
-}
+});

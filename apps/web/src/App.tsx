@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { api, type Me } from "./api";
+import useSWR from "swr";
+import { api } from "./api";
 import { navigate, type Route, useRoute } from "./useRoute";
 import { Challenge } from "./views/Challenge";
 import { CreateQuiz } from "./views/CreateQuiz";
@@ -10,20 +10,16 @@ import { Timeline } from "./views/Timeline";
 
 export function App() {
   const route = useRoute();
-  const [user, setUser] = useState<Me | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    api
-      .me()
-      .then((r) => setUser(r.user))
-      .catch(() => setUser(null))
-      .finally(() => setLoaded(true));
-  }, []);
+  // Auth state lives in SWR's cache (key "auth/me") so it's deduped/shared and
+  // revalidates on focus. me() returns {user:null} when logged out (it doesn't
+  // throw), so `data === undefined` is the only "still loading" signal.
+  const { data, mutate } = useSWR("auth/me", () => api.me());
+  const user = data?.user ?? null;
+  const loaded = data !== undefined;
 
   const logout = async () => {
     await api.logout();
-    setUser(null);
+    mutate({ user: null }, { revalidate: false });
     navigate("/");
   };
 
