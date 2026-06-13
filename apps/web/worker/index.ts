@@ -4,6 +4,7 @@ import { optionalAuth, requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
+import { attemptsRouter } from "./routes/attempts";
 import { publicRouter } from "./routes/public";
 import { quizzesRouter } from "./routes/quizzes";
 import { tokensRouter } from "./routes/tokens";
@@ -46,6 +47,9 @@ api.route("/quizzes", quizzesRouter);
 
 // Public read surface: timeline + single published quiz (challenge view).
 api.route("/public", publicRouter);
+
+// Attempts: start/resume, submit one answer (server-graded), get state.
+api.route("/attempts", attemptsRouter);
 
 app.route("/api", api);
 
