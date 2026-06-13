@@ -4,6 +4,7 @@ import { optionalAuth, requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
+import { tokensRouter } from "./routes/tokens";
 import type { User } from "./db/schema";
 import type { Env } from "./types";
 
@@ -34,6 +35,9 @@ api.post("/auth/logout", requireAuth, async (c) => {
   await destroySession(c);
   return c.json({ ok: true });
 });
+
+// PAT management (session-only).
+api.route("/tokens", tokensRouter);
 
 app.route("/api", api);
 

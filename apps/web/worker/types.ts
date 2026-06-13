@@ -18,9 +18,11 @@ export type AuthMethod = "session" | "pat";
 
 // Hono context variables. `user` is set by the auth middleware when a request is
 // authenticated; read it via requireUser(c) after requireAuth, never assume it.
+// `scopes` is populated for PAT-authenticated requests (sessions have full access).
 export type Variables = {
   user?: User;
   authMethod?: AuthMethod;
+  scopes?: string[];
 };
 
 // The shape every Hono instance/handler in this worker is typed against.
