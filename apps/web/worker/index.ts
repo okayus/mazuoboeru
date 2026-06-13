@@ -4,6 +4,7 @@ import { optionalAuth, requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
+import { publicRouter } from "./routes/public";
 import { quizzesRouter } from "./routes/quizzes";
 import { tokensRouter } from "./routes/tokens";
 import type { User } from "./db/schema";
@@ -42,6 +43,9 @@ api.route("/tokens", tokensRouter);
 
 // Quiz author CRUD + publish gate (session or PAT with quiz:write).
 api.route("/quizzes", quizzesRouter);
+
+// Public read surface: timeline + single published quiz (challenge view).
+api.route("/public", publicRouter);
 
 app.route("/api", api);
 
