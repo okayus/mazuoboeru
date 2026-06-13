@@ -10,7 +10,7 @@
   },
   "vars": {
     // Initially localhost; Phase 4 (setup-order) locks these to the real production hostname
-    // mazuoboeru.workers.dev. Once locked, NEVER change RP_ID — it invalidates every WebAuthn credential.
+    // mazuoboeru.shiraoka.workers.dev. Once locked, NEVER change RP_ID — it invalidates every WebAuthn credential.
     "RP_ID": "localhost",
     "ORIGIN": "http://localhost:5173"
   },

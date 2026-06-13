@@ -61,6 +61,7 @@ user 1───* report          (通報)
 
 - 認証ミドルウェアは `Authorization: Bearer <token>` を受け、`token_hash` 一致＋ `revoked_at IS NULL` ＋ `expires_at` 未経過で通す。
 - 失効/ローテーションは Web 設定画面から実施。
+- **トークン形式（2026-06-12 グリル確定）**: `mzo_pat_<base64url(32 ランダムバイト)>`。先頭の `mzo_pat_` プレフィックスで secret scanning（GitHub push protection 等）が検出でき、ログ上の識別も容易。`token_hash = sha256(token + pepper)`、**pepper は Worker Secret**（コードに置かない）。平文は発行直後の画面表示のみ。**既定は無期限**（`expires_at` は任意。AI エージェントの常用・量産向け）で、失効はいつでも設定画面から（`revoked_at`）。`scopes` は MVP 固定セット `["quiz:read","quiz:write"]`。
 
 ### credential（Passkey, Phase 2 候補）
 - MVP では作らない。Phase 2 で Google ログイン後の追加導線として再評価する場合、kokemusu と同形（`id` / `user_id` / `public_key` / `counter` / `transports` / `label` / `created_at`）で導入。

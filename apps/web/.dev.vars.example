@@ -1,8 +1,19 @@
 # Copy to .dev.vars and fill values. .dev.vars is gitignored.
+# Production values are set with `wrangler secret put` (never committed) — ADR-0003.
 
-# Session signing key (later phase, not needed at skeleton)
-SESSION_SECRET=
-
-# WebAuthn / OAuth Relying Party (localhost for dev; prod uses wrangler.jsonc vars)
+# OAuth Relying Party. ORIGIN must equal the browser-facing origin AND match the
+# redirect URI registered with each provider: <ORIGIN>/auth/callback/{google,github}.
+# Inside the container vite serves on 5173; if you browse via the host port (5373),
+# set ORIGIN=http://localhost:5373 and register that redirect URI in the dev clients.
 RP_ID=localhost
 ORIGIN=http://localhost:5173
+
+# Dev-only OAuth clients (redirect URIs = localhost only). Create separate dev
+# clients from prod; never put prod secrets in .dev.vars.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Pepper mixed into PAT hashes: sha256(token + PAT_PEPPER). Any long random string.
+PAT_PEPPER=

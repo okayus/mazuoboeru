@@ -1,0 +1,298 @@
+:root {
+  --fg: #1a1a2e;
+  --muted: #6b7280;
+  --accent: #3b4cca;
+  --ok: #15803d;
+  --bad: #b91c1c;
+  --line: #e5e7eb;
+  --bg: #f7f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  line-height: 1.6;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px 64px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+nav a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+nav a:hover {
+  color: var(--accent);
+}
+
+.user {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+}
+
+main {
+  padding-top: 20px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quiz-list {
+  list-style: none;
+  padding: 0;
+}
+
+.quiz-list h3 {
+  margin: 0 0 6px;
+}
+
+.error {
+  color: var(--bad);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+button {
+  font: inherit;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn {
+  display: inline-block;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-right: 8px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.field {
+  display: block;
+  margin: 12px 0;
+}
+
+.field > span {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+input[type="text"],
+input:not([type]),
+textarea,
+select {
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+select {
+  width: auto;
+}
+
+.choice-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.choice-edit input[type="radio"],
+.choice-edit input[type="checkbox"] {
+  width: auto;
+  flex: none;
+}
+
+.q-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.badge {
+  font-size: 0.75rem;
+  background: #eef0ff;
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.choices {
+  list-style: none;
+  padding: 0;
+}
+
+.choices li {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.choices label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.choice-correct {
+  background: #ecfdf5;
+  color: var(--ok);
+}
+
+.choice-chosen {
+  background: #eef0ff;
+}
+
+.question.correct {
+  border-color: #bbf7d0;
+}
+
+.question.wrong {
+  border-color: #fecaca;
+}
+
+.explanation {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.progress {
+  font-weight: 600;
+}
+
+.token-once {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.token {
+  display: block;
+  padding: 10px;
+  background: #fff;
+  border: 1px dashed #f59e0b;
+  border-radius: 8px;
+  word-break: break-all;
+  margin: 8px 0;
+}
+
+table.tokens {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.tokens th,
+table.tokens td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+
+.md :first-child {
+  margin-top: 0;
+}
+
+.md :last-child {
+  margin-bottom: 0;
+}
+
+.md pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.md code {
+  background: #eef0ff;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.md pre code {
+  background: none;
+  padding: 0;
+}

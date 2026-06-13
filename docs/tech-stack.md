@@ -8,7 +8,7 @@
 - **React 19 + Vite + TypeScript**（kokemusu と共通）。
 - スタイリング: Tailwind CSS or CSS Modules。
 - 状態管理: React 標準 ＋ 必要なら軽量ライブラリ（Zustand 等、関数志向）。
-- Markdown 表示: パーサ ＋ **サニタイズ必須**（DOMPurify）。UGC を表示するため kokemusu より重要。
+- Markdown 表示: **react-markdown ＋ rehype-sanitize**（生 HTML 非描画。単一コンポーネントに集約し mermaid・数式を保存形式の移行なしで将来差し替え可能に）。UGC を表示するため kokemusu より重要（[security.md](security.md)）。
 
 ## バックエンド / API
 
@@ -28,7 +28,7 @@
   - kokemusu = 各自が自分の CF アカウントにデプロイ（per-user セルフホスト）。
   - **mazuoboeru = 開発者が1つの共有サービスとしてデプロイ**（公開 SaaS）。利用者はアカウントを作って使うだけ。
 - メリット: 保守最小・無料/低コスト枠・HTTPS 自動・`cloudflare-workers-deploy-skeleton` ほかスキルがそのまま使える。
-- **本番ドメイン**: `mazuoboeru.workers.dev` を Day 1 で固定（[ADR-0001](adr/0001-auth-via-oauth-and-pat.md)）。OAuth redirect URI は `https://mazuoboeru.workers.dev/auth/callback/{google,github}`。custom domain への移行は OAuth provider 側に追加 redirect URI を登録するだけで済むため、初期は workers.dev のみで開始。
+- **本番ドメイン**: workers.dev 運用を Day 1 で固定（[ADR-0001](adr/0001-auth-via-oauth-and-pat.md)）。実 URL は `mazuoboeru.shiraoka.workers.dev`（account subdomain 由来）、OAuth redirect URI は `https://mazuoboeru.shiraoka.workers.dev/auth/callback/{google,github}`。custom domain への移行は OAuth provider 側に追加 redirect URI を登録するだけで済むため、初期は workers.dev のみで開始。
 - 公開サービスゆえ **レート制限・bot 対策**（`cloudflare-workers-bot-scan-defense`）と **D1 バックアップ**（`cloudflare-d1-weekly-backup-via-pr`）の優先度が高い。
 - **モデレータ画面**: Phase 4 で導入時、`/admin/*` を Cloudflare Access（Zero Trust 無料枠、50ユーザまで）で IdP ゲートする案を残す。
 
@@ -45,13 +45,17 @@
 MVP から **pnpm workspaces** で分割する。パッケージ名は `@mazuoboeru/*` 規約。
 **`server/` パッケージは作らない**: `@cloudflare/vite-plugin` が SPA と Worker を1つの Worker にビルドするため、`apps/web` に SPA＋Worker＋`wrangler.jsonc` を同梱するのが正（2026-06-11 確定。[ADR-0003](adr/0003-secrets-strategy.md) の Workers Builds root directory = `apps/web` とも一対一）。Worker 側ロジックの肥大化で分離が必要になったら `packages/` への切り出しを再検討する。
 
+- **Phase 1 のドメイン／DB ロジックは `apps/web/worker/` 内に同居**（2026-06-12 グリル確定）: 採点等の純粋関数は `worker/domain/`、Drizzle スキーマ＆クエリは `worker/db/` に置く。consumer が worker のみのうちは `packages/{core,db}` を立てず、**第2コンシューマ（採点ロジックを必要とする CLI 等）が現れたら同名パッケージへ機械的に切り出す**（前身ディレクトリ名を packages 名に揃えてある）。「関数のみ・I/O は境界へ」は worker 内のディレクトリ境界（`domain/` は I/O を持たない）で担保し、route handler が D1 と純粋関数を繋ぐ。
+
 ```
 mazuoboeru/
 ├── apps/
 │   ├── web/           # @mazuoboeru/web    : React 19 + Vite SPA ＋ Worker（Hono）同梱
 │   │   ├── src/       #   SPA 本体
 │   │   ├── worker/    #   API・Cron（Hono on Cloudflare Workers）
-│   │   ├── drizzle/   #   D1 マイグレーション
+│   │   │   ├── domain/ #   採点等のドメイン純粋関数（I/O なし＝packages/core の前身）
+│   │   │   └── db/    #   Drizzle スキーマ & クエリ（＝packages/db の前身）
+│   │   ├── drizzle/   #   D1 マイグレーション（drizzle-kit 出力）
 │   │   └── wrangler.jsonc
 │   └── cli/           # @mazuoboeru/cli    : CLI / AI エージェント用（PAT で API を叩く薄い層）※ロジック発生時に追加
 ├── packages/

@@ -20,7 +20,7 @@
   - **Phase 2 候補**: ○×（`boolean`）、一問一答（`short`、表記ゆれの正規化が要詰め）、穴埋め（`cloze`）。
   - 設問形式は将来追加が容易な形でスキーマを設計する（`question.type` を text enum、type 別 payload は将来 JSON 等で）。
 - 各設問に **解説** を付けられる（挑戦後に表示。学びの核）。
-- Markdown 対応（コード・リンク程度）。**表示時はサニタイズ必須**（[security.md](security.md)）。
+- Markdown 対応（コード・リンク程度）。**描画は `react-markdown` ＋ `rehype-sanitize`**（生 HTML 非描画。[security.md](security.md)）。renderer は単一コンポーネントに集約し、将来 mermaid・数式を**保存形式の移行なし**で追加できる拡張性を持たせる。MVP は画像を描画せずリンク表示。
 - 公開フロー（[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）:
   - 作成中は `draft`（本人のみ可視）。
   - 作者が「公開する」ボタンを押すと `published` に **不可逆遷移**。
