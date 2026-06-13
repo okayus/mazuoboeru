@@ -3,10 +3,15 @@ import { runScheduled } from "./cron";
 import { optionalAuth, requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
+import { csrf, securityHeaders } from "./middleware/security";
 import type { User } from "./db/schema";
 import type { Env } from "./types";
 
 const app = new Hono<Env>();
+
+// Global: security headers on every response, CSRF Origin check on mutations.
+app.use("*", securityHeaders);
+app.use("*", csrf);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
