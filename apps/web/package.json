@@ -12,6 +12,7 @@
     "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote"
   },
   "dependencies": {
+    "arctic": "^3.7.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0",
     "react": "^19.0.0",

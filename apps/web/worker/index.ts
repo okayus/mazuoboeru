@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { runScheduled } from "./cron";
 import { optionalAuth, requireAuth } from "./auth/middleware";
+import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import type { User } from "./db/schema";
 import type { Env } from "./types";
@@ -30,6 +31,10 @@ api.post("/auth/logout", requireAuth, async (c) => {
 });
 
 app.route("/api", api);
+
+// OAuth login + callback. Mounted at /auth so the registered redirect URI is
+// <ORIGIN>/auth/callback/{google,github} (ADR-0001).
+app.route("/auth", authRouter);
 
 // L3 of the 3-layer SPA routing dance: delegate unmatched routes to the Assets binding.
 app.notFound(async (c) => {
