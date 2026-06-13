@@ -8,10 +8,10 @@
 
 - **開発環境コンテナ**構築済み（`claude-code-docker-sandbox`、ホストポート 5373）。
 - **pnpm workspaces** で `apps/web`（SPA＋Worker＋wrangler.jsonc 同梱）を生成済み。`apps/cli`・`packages/{core,db}` はロジック発生時に追加（[tech-stack.md](tech-stack.md)）。
-- デプロイ骨格（`cloudflare-workers-deploy-skeleton`）で「歩く骨格」を本番デプロイまで通す。本番ドメインは `mazuoboeru.workers.dev` で固定（[ADR-0001](adr/0001-auth-via-oauth-and-pat.md)）。
+- デプロイ骨格（`cloudflare-workers-deploy-skeleton`）で「歩く骨格」を本番デプロイまで通す。本番ドメインは workers.dev 運用で固定、実 URL は `mazuoboeru.shiraoka.workers.dev`（[ADR-0001](adr/0001-auth-via-oauth-and-pat.md)）。
 - Cloudflare 認証: デプロイは **Workers Builds**（キーレス、[ADR-0003](adr/0003-secrets-strategy.md)）。コンテナ内 wrangler はローカルモード専用（`wrangler login` しない）。アカウント操作はホスト側の人手。
 - DB スキーマとマイグレーション（[data-model.md](data-model.md)）。`api_token` テーブルを最初から含める。実スキーマ投入は `cloudflare-d1-drizzle-migration` 必読。
-- 認証の骨組み: `arctic` + 自前 Hono middleware（Google/GitHub の OAuth クライアント登録 → redirect URI `https://mazuoboeru.workers.dev/auth/callback/{google,github}`）。
+- 認証の骨組み: `arctic` + 自前 Hono middleware（Google/GitHub の OAuth クライアント登録 → redirect URI `https://mazuoboeru.shiraoka.workers.dev/auth/callback/{google,github}`）。
 - ドメインロジックの器（`packages/core`：採点・SRS）。
 
 ## Phase 1 — MVP（共有が成立する最小形）
@@ -24,7 +24,7 @@
 - 公開タイムライン（新着）、クイズ詳細。クエリは常に `status='published' AND deleted_at IS NULL`。
 - 挑戦 ＆ **サーバー側採点**（純粋関数 in `packages/core`）、即時フィードバック（正誤＋解説）。
 - 通報チャネル（クイズ/設問/ユーザ単位、選択肢理由＋自由記述、レート制限 10件/日/ユーザ）。
-- UGC サニタイズ（DOMPurify）/ CSP / 認証・投稿のレート制限（`cloudflare-workers-bot-scan-defense`）。
+- UGC 描画は react-markdown ＋ rehype-sanitize（生 HTML 非描画、[ADR-0004](adr/0004-ugc-markdown-rendering.md)）/ CSP（`img-src 'self'`）/ 認証・投稿のレート制限（`cloudflare-workers-bot-scan-defense`）。
 - `apps/cli` の最小実装（PAT を env から読んで `POST /quiz` を叩く薄い Node スクリプト、npm 未配信）。
 
 ## Phase 2 — 発見と振り返り
@@ -58,12 +58,18 @@
 | 1' | 同一 email マージ | 自動リンク（verified 前提） | ADR-0001 |
 | 1'' | CLI / AI 認証 | PAT (Bearer)、Phase 1 から | ADR-0001 |
 | 1''' | OAuth ライブラリ | `arctic` + 自前 middleware | [tech-stack.md](tech-stack.md) |
-| 2 | 本番ドメイン | `mazuoboeru.workers.dev` を Day 1 固定 | ADR-0001 |
+| 2 | 本番ドメイン | workers.dev 運用を Day 1 固定（実 URL `mazuoboeru.shiraoka.workers.dev`） | ADR-0001 |
 | 3 | 設問形式 MVP | `mcq_single` + `mcq_multi` のみ、strict 採点 | [features.md](features.md), [data-model.md](data-model.md) |
 | 4 | 「必ず公開」 | `draft` → `published` 不可逆、軽微編集可、削除はソフト、`hidden` はモデレータ専用 | [ADR-0002](adr/0002-publish-flow-and-edit-rules.md) |
 | 6 | モデレーション MVP | 通報チャネル + rate limit のみ（admin UI は Phase 4） | features.md / data-model.md |
 | 7 | リポ構成 | pnpm workspaces、`apps/web` に SPA＋Worker 同梱（`server/` は作らない）、`apps/cli`・`packages/{core,db}` は必要時 | tech-stack.md |
 | 8 | シークレット戦略（2026-06-11） | Workers Builds キーレスデプロイ + ホスト側リレー push/PR。サンドボックス内平文ゼロ、リポ public・main は ruleset 保護 | [ADR-0003](adr/0003-secrets-strategy.md) |
+| 9 | セッション / CSRF（2026-06-12 グリル） | 30日スライディング・DB は sha256 ハッシュ保存・host-only Cookie（本番 `__Host-`）・SameSite=Lax + 状態変更の Origin 検証 | ADR-0001, [security.md](security.md) |
+| 10 | 自動リンク厳密化（同上） | リンク/作成は「いまのプロバイダが検証済みメールを主張」時のみ、未検証は拒否 | ADR-0001 |
+| 11 | 提出単位 / 再開（同上） | 1問ずつ即時採点（[[Immediate Feedback]]）、未完了 Attempt は続きから再開、集計は完了 Attempt のみ | [CONTEXT.md](../CONTEXT.md) |
+| 12 | 公開ゲート（同上） | publish 時にサーバが採点可能性を強制（タイトル/設問≥1/選択肢≥2/正解数、strict 採点） | [ADR-0002](adr/0002-publish-flow-and-edit-rules.md) |
+| 13 | UGC 描画（同上） | react-markdown + rehype-sanitize（生 HTML 非描画）、単一 renderer で拡張可、画像/mermaid は Phase 2 | [ADR-0004](adr/0004-ugc-markdown-rendering.md) |
+| 14 | ドメイン配置 / PAT（同上） | 採点等は `worker/domain`・スキーマは `worker/db` に同居（packages は第2 consumer まで保留）、PAT は `mzo_pat_` 形式・既定無期限 | [tech-stack.md](tech-stack.md), [data-model.md](data-model.md) |
 
 ## 持ち越し（Phase 2 以降で再開）
 

@@ -44,6 +44,6 @@
    PR ごとに人間がレビュー & merge。main merge で Workers Builds が自動デプロイ。
 4. スキーマ投入は cloudflare-d1-drizzle-migration、レート制限は cloudflare-workers-bot-scan-defense を参照。
 
-規約: TS は関数のみ class なし / 採点はサーバー側 / UGC はサニタイズ（DOMPurify）/
+規約: TS は関数のみ class なし / 採点はサーバー側 / UGC は react-markdown+rehype-sanitize（生 HTML 非描画）/
 公開クエリは status='published' AND deleted_at IS NULL / 秘密はコードに書かず名前参照。
 ```
