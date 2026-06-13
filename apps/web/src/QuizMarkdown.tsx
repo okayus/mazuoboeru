@@ -1,34 +1,18 @@
-import Markdown, { type Components } from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
+import { lazy, Suspense } from "react";
 
-// The single shared UGC renderer (ADR-0004). Markdown is rendered via AST to React
-// elements — no HTML string, no dangerouslySetInnerHTML, and `skipHtml` drops any
-// raw HTML (we never add rehype-raw). rehype-sanitize is defense-in-depth. Images
-// are NOT rendered in MVP (shown as their alt text); links open safely.
+// Public entry point for UGC markdown (ADR-0004). The heavy renderer
+// (react-markdown + remark/rehype) is code-split into a separate chunk and loaded
+// on first use, so markdown-free routes don't pay for it and the app shell paints
+// before it arrives. Call sites stay unchanged: <QuizMarkdown>{content}</QuizMarkdown>.
 //
-// To add mermaid / KaTeX later, extend `remarkPlugins` / `rehypePlugins` /
-// `components` HERE only — stored content is raw markdown, so no data migration.
-const components: Components = {
-  img: (props) => <span className="md-img-placeholder">{props.alt ?? ""}</span>,
-  a: (props) => (
-    <a href={props.href} target="_blank" rel="noopener noreferrer nofollow">
-      {props.children}
-    </a>
-  ),
-};
+// One module-level lazy() = one shared chunk reused across every instance (the
+// first render to mount triggers the import; the rest reuse it).
+const QuizMarkdownRenderer = lazy(() => import("./QuizMarkdownRenderer"));
 
 export function QuizMarkdown({ children }: { children: string }) {
   return (
-    <div className="md">
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
-        components={components}
-        skipHtml
-      >
-        {children}
-      </Markdown>
-    </div>
+    <Suspense fallback={<div className="md" />}>
+      <QuizMarkdownRenderer>{children}</QuizMarkdownRenderer>
+    </Suspense>
   );
 }

@@ -8,16 +8,21 @@ import {
 } from "../api";
 import { navigate } from "../useRoute";
 
-type ChoiceDraft = { text: string; isCorrect: boolean };
+type ChoiceDraft = { id: string; text: string; isCorrect: boolean };
 type QuestionDraft = {
+  id: string;
   type: QuestionType;
   prompt: string;
   explanation: string;
   choices: ChoiceDraft[];
 };
 
-const emptyChoice = (): ChoiceDraft => ({ text: "", isCorrect: false });
+// Stable client-side ids for React keys. Without these, removing a middle question
+// / choice (index keys) misassociates DOM state — focus, IME composition, radio
+// grouping — to the wrong row. Ids never leave the client (buildInput strips them).
+const emptyChoice = (): ChoiceDraft => ({ id: crypto.randomUUID(), text: "", isCorrect: false });
 const emptyQuestion = (): QuestionDraft => ({
+  id: crypto.randomUUID(),
   type: "mcq_single",
   prompt: "",
   explanation: "",
@@ -126,7 +131,7 @@ export function CreateQuiz() {
       </label>
 
       {questions.map((q, qi) => (
-        <div key={qi} className="card question-edit">
+        <div key={q.id} className="card question-edit">
           <div className="q-head">
             <strong>Q{qi + 1}</strong>
             <select value={q.type} onChange={(e) => setType(qi, e.target.value as QuestionType)}>
@@ -152,10 +157,10 @@ export function CreateQuiz() {
           <div className="field">
             <span>選択肢（チェックで正解）</span>
             {q.choices.map((c, ci) => (
-              <div key={ci} className="choice-edit">
+              <div key={c.id} className="choice-edit">
                 <input
                   type={q.type === "mcq_single" ? "radio" : "checkbox"}
-                  name={`correct-${qi}`}
+                  name={`correct-${q.id}`}
                   checked={c.isCorrect}
                   onChange={(e) => setCorrect(qi, ci, e.target.checked)}
                 />

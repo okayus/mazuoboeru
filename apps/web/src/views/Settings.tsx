@@ -1,40 +1,34 @@
-import { useEffect, useState } from "react";
-import { api, type CreatedToken, isApiError, type TokenSummary } from "../api";
+import { useState } from "react";
+import useSWR from "swr";
+import { api, type CreatedToken, isApiError } from "../api";
 
 export function Settings() {
-  const [tokens, setTokens] = useState<TokenSummary[] | null>(null);
+  // Auth-gated read: don't retry on the 401 (shouldRetryOnError: false).
+  const { data, error, mutate } = useSWR("tokens", () => api.listTokens(), {
+    shouldRetryOnError: false,
+  });
   const [name, setName] = useState("");
   const [created, setCreated] = useState<CreatedToken | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [needLogin, setNeedLogin] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = () => {
-    api
-      .listTokens()
-      .then((r) => setTokens(r.tokens))
-      .catch((e) => {
-        if (isApiError(e) && e.status === 401) setNeedLogin(true);
-        else setError("読み込みに失敗しました");
-      });
-  };
-  useEffect(load, []);
+  const needLogin = isApiError(error) && error.status === 401;
 
   const create = async () => {
     if (!name.trim()) return;
-    setError(null);
+    setActionError(null);
     try {
       const r = await api.createToken(name.trim());
       setCreated(r.token);
       setName("");
-      load();
+      mutate();
     } catch {
-      setError("発行に失敗しました");
+      setActionError("発行に失敗しました");
     }
   };
 
   const revoke = async (id: string) => {
     await api.revokeToken(id);
-    load();
+    mutate();
   };
 
   if (needLogin)
@@ -43,6 +37,9 @@ export function Settings() {
         この画面には <a href="#/login">ログイン</a> が必要です。
       </p>
     );
+
+  const tokens = data?.tokens;
+  const errMsg = actionError ?? (error ? "読み込みに失敗しました" : null);
 
   return (
     <div>
@@ -70,9 +67,9 @@ export function Settings() {
         </div>
       ) : null}
 
-      {error ? <p className="error">{error}</p> : null}
+      {errMsg ? <p className="error">{errMsg}</p> : null}
 
-      {!tokens ? (
+      {error ? null : !tokens ? (
         <p>読み込み中…</p>
       ) : tokens.length === 0 ? (
         <p>まだトークンはありません。</p>

@@ -1,20 +1,14 @@
-import { useEffect, useState } from "react";
-import { api, type TimelineItem } from "../api";
+import useSWR from "swr";
+import { api } from "../api";
 import { QuizMarkdown } from "../QuizMarkdown";
 
 export function Timeline() {
-  const [items, setItems] = useState<TimelineItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Cached + deduped across navigation (key "public/quizzes"); revalidates on focus.
+  const { data, error } = useSWR("public/quizzes", () => api.timeline());
 
-  useEffect(() => {
-    api
-      .timeline()
-      .then((r) => setItems(r.quizzes))
-      .catch(() => setError("読み込みに失敗しました"));
-  }, []);
-
-  if (error) return <p className="error">{error}</p>;
-  if (!items) return <p>読み込み中…</p>;
+  if (error) return <p className="error">読み込みに失敗しました</p>;
+  if (!data) return <p>読み込み中…</p>;
+  const items = data.quizzes;
   if (items.length === 0) return <p>まだ公開されたクイズはありません。</p>;
 
   return (
