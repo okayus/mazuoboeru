@@ -1,7 +1,8 @@
-# 次セッション引き継ぎブリーフ — 自律開発基盤は完成、次は Phase 1（最初の縦切り）
+# 次セッション引き継ぎブリーフ — Phase 1 最初の縦切りは実装済み（ブランチ）、次はデプロイ前提の人手作業
 
 > ADR-0003 のシークレット戦略は **実働済み**（2026-06-11、Phase A〜C 完了）。
-> 次セッションの仕事はアプリ本体＝Phase 1。基盤・規約は CLAUDE.md と ADR-0003 を正とし再議論しない。
+> 基盤・規約は CLAUDE.md と ADR-0003 を正とし再議論しない。
+> **2026-06-12: Phase 1 の最初の縦切りを実装し `claude/phase1-vertical-slice` に積んだ**（設計は本セッションの /grill-with-docs で確定＝ADR-0004 ほか）。レビュー & merge と下記「デプロイ前提」が残作業。
 
 ## 最初に読むもの
 `CLAUDE.md` → `docs/roadmap.md`（Phase 1 のゴール）→ `docs/adr/0001`（認証設計）→ `docs/security.md` → 本ファイル。
@@ -14,13 +15,19 @@
 - **コンテナ内規約（最終形）**: `claude/*` へ `git add/commit/checkout/switch` 可・`git push` は deny。push/PR はリレー任せ（手動操作不要）。
 - スキル還元済み: okayus-skills に `cloudflare-workers-builds-keyless-deploy`・`sandboxed-agent-git-relay`（okayus-skills 側は未コミット、人間がレビューして commit）。
 
-## 次にやること — Phase 1（`docs/roadmap.md`）
-最初の縦切り: **Google ログイン → クイズ作成（mcq_single）→ 明示公開 → 別アカウントで挑戦 → サーバー採点 → 即時フィードバック**。PAT 発行 UI + Bearer middleware も縦切りに同梱。
+## Phase 1 縦切りの実装状況（`claude/phase1-vertical-slice`）
+**Google/GitHub ログイン → クイズ作成（mcq_single/multi）→ 公開ゲート → 別アカウントで挑戦 → サーバー採点 → 即時フィードバック**、PAT 発行 UI + Bearer も同梱。コミットは機能単位（db→auth→oauth→csrf→pat→quiz→public→attempt→spa）。
 
-着手前の確定事項（人手が絡む順に）:
-1. **account subdomain の確定**（CLAUDE.md 未決定欄）— OAuth redirect URI と ORIGIN が依存。改名するなら他サービスへの影響確認のうえ先に。
-2. **dev 専用 OAuth クライアント作成**（Google/GitHub、redirect = localhost のみ）→ `.dev.vars` へ（ADR-0003 の 2 層ルール: 本番値は `wrangler secret put`、サンドボックスには dev 層のみ）。
-3. 実スキーマ投入時は `cloudflare-d1-drizzle-migration` スキル必読。
+- **実装済み**: D1 スキーマ9表＋0001 マイグレーション（CHECK/FK/索引）／セッション（30日スライディング・sha256 保存・host-only Cookie）／OAuth（arctic、検証済みメール限定 auto-link・未検証拒否）／CSRF(Origin)＋CSP/セキュリティヘッダ／PAT（`mzo_pat_`・既定無期限・session 限定発行・scope）／クイズ author CRUD＋公開ゲート（採点可能性をサーバ強制）／公開タイムライン＋挑戦ビュー（答え非開示）／挑戦＋strict 採点（純粋関数）／react-markdown+rehype-sanitize の SPA。
+- **検証済み（コンテナ内）**: tsc・vitest 15件（採点/公開ゲート純粋関数）・build。PAT/Bearer での **バックエンド一周**（作成→422/200→タイムライン→挑戦→採点→再回答拒否→CSRF）。SPA HTML が全セキュリティヘッダ付きで配信。DB CHECK が `private` 等を拒否。
+- **未検証（人手/後続）**: OAuth ログインの実ブラウザ一周（dev クライアント要）。Playwright e2e（`cloudflare-workers-e2e-playwright`、roadmap 後続）。本番 strict CSP は deploy 後に実 URL で確認。
+
+## デプロイ前提（人手・merge 前後に必要）
+1. **本番 Worker Secrets**（`wrangler secret put`、コードは名前参照のみ）: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`PAT_PEPPER`。
+2. **本番 OAuth クライアント**（Google/GitHub）の redirect URI = `https://mazuoboeru.shiraoka.workers.dev/auth/callback/{google,github}`。
+3. **本番 D1 へ 0001 マイグレーション適用**（`wrangler d1 migrations apply mazuoboeru-db --remote`、D1 Edit 権限要）。**これを忘れると本番でテーブル不在のクエリが失敗する**。Workers Builds のビルドコマンドに含めるか手動で。
+4. **dev**: dev 専用 OAuth クライアント（redirect=localhost）→ `.dev.vars`（`.dev.vars.example` 参照）。`PAT_PEPPER` も dev 用に。
+5. 以後の実スキーマ変更は `cloudflare-d1-drizzle-migration` スキル必読（追加は安全、constraint 変更/table rebuild は要バックアップ）。
 
 ## 運用チートシート（基盤）
 - リレー状態: `systemctl --user list-timers mazuoboeru-relay.timer` ／ ログ: `journalctl --user -u mazuoboeru-relay.service -f` ／ 手動 1 回: `systemctl --user start mazuoboeru-relay.service`
