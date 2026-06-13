@@ -1,10 +1,35 @@
 import { Hono } from "hono";
 import { runScheduled } from "./cron";
-import type { Bindings } from "./types";
+import { optionalAuth, requireAuth } from "./auth/middleware";
+import { destroySession } from "./auth/session";
+import type { User } from "./db/schema";
+import type { Env } from "./types";
 
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<Env>();
 
 app.get("/health", (c) => c.json({ status: "ok" }));
+
+// Public projection of a user — never leak email or other PII.
+function meJson(user: User) {
+  return { id: user.id, displayName: user.displayName, role: user.role };
+}
+
+const api = new Hono<Env>();
+api.use("*", optionalAuth);
+
+// Current user, or { user: null } when not logged in.
+api.get("/auth/me", (c) => {
+  const user = c.get("user");
+  return c.json({ user: user ? meJson(user) : null });
+});
+
+// Log out: destroy the session and clear the cookie.
+api.post("/auth/logout", requireAuth, async (c) => {
+  await destroySession(c);
+  return c.json({ ok: true });
+});
+
+app.route("/api", api);
 
 // L3 of the 3-layer SPA routing dance: delegate unmatched routes to the Assets binding.
 app.notFound(async (c) => {
@@ -17,4 +42,4 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runScheduled(event, env));
   },
-} satisfies ExportedHandler<Bindings>;
+} satisfies ExportedHandler<Env["Bindings"]>;

@@ -199,3 +199,14 @@ export const attemptAnswer = sqliteTable(
     uniqueIndex("idx_attempt_answer_unique").on(t.attemptId, t.questionId),
   ],
 );
+
+// Inferred row types for use across the worker (query results / inserts).
+export type User = typeof user.$inferSelect;
+export type NewUser = typeof user.$inferInsert;
+export type OauthAccount = typeof oauthAccount.$inferSelect;
+export type ApiToken = typeof apiToken.$inferSelect;
+export type Quiz = typeof quiz.$inferSelect;
+export type Question = typeof question.$inferSelect;
+export type Choice = typeof choice.$inferSelect;
+export type Attempt = typeof attempt.$inferSelect;
+export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
