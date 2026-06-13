@@ -1,0 +1,201 @@
+// Drizzle schema for the Phase 1 vertical slice.
+//
+// This is the query-time source of truth (drizzle-orm uses it for typed queries).
+// The DDL — including CHECK constraints and the exact column order — lives in the
+// hand-written migration `drizzle/0001_phase1_slice.sql`, which is what actually
+// runs against D1. Keep the two in sync by hand for now (drizzle-kit generate is
+// deferred until the schema stabilises; the existing applied `0000_init.sql`
+// baseline makes a clean drizzle-kit re-baseline a later, separate task).
+//
+// Conventions: ids are text UUIDs (crypto.randomUUID); timestamps are epoch ms
+// stored as integer; booleans are integer 0/1. See docs/data-model.md.
+
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+
+export const user = sqliteTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    // Public. Shown as the quiz author. Editable by the user.
+    displayName: text("display_name").notNull(),
+    // Private PII. Used for OAuth identity / notifications, never exposed publicly.
+    email: text("email"),
+    role: text("role", { enum: ["user", "moderator", "admin"] })
+      .notNull()
+      .default("user"),
+    status: text("status", { enum: ["active", "suspended"] })
+      .notNull()
+      .default("active"),
+    createdAt: integer("created_at").notNull(),
+  },
+);
+
+// MVP auth method. (provider, provider_account_id) is the IdP-side stable identity.
+// Auto-linking onto an existing user is allowed only when the *current* provider
+// asserts the email is verified — see ADR-0001. That rule is enforced in app logic.
+export const oauthAccount = sqliteTable(
+  "oauth_account",
+  {
+    provider: text("provider", { enum: ["google", "github"] }).notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.provider, t.providerAccountId] }),
+    index("idx_oauth_account_user").on(t.userId),
+  ],
+);
+
+// Cookie-based web session. `id` stores sha256(token) hex — the raw token lives
+// only in the browser cookie (ADR-0001). 30-day sliding expiry.
+export const session = sqliteTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at").notNull(),
+    lastSeenAt: integer("last_seen_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (t) => [index("idx_session_expires").on(t.expiresAt)],
+);
+
+// PAT for CLI / AI agents. `token_hash` = sha256(token + pepper); raw token shown
+// once at creation. Format `mzo_pat_<base64url(32B)>`, default no expiry (ADR-0001).
+export const apiToken = sqliteTable(
+  "api_token",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    scopes: text("scopes").notNull(), // JSON array, e.g. ["quiz:read","quiz:write"]
+    createdAt: integer("created_at").notNull(),
+    lastUsedAt: integer("last_used_at"),
+    expiresAt: integer("expires_at"),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("idx_api_token_hash").on(t.tokenHash),
+    index("idx_api_token_user").on(t.userId, t.revokedAt),
+  ],
+);
+
+// Quizzes are always public. status is draft|published|hidden (no `private`),
+// draft->published is irreversible, hidden is moderator-only. deleted_at is soft
+// delete. Public queries always filter status='published' AND deleted_at IS NULL.
+// author_id intentionally does NOT cascade: a quiz outlives nothing of the author's
+// here, and others' attempts reference it — author hard-delete is a Phase 4 flow.
+export const quiz = sqliteTable(
+  "quiz",
+  {
+    id: text("id").primaryKey(),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    title: text("title").notNull(),
+    description: text("description"), // Markdown, sanitized at render
+    status: text("status", { enum: ["draft", "published", "hidden"] })
+      .notNull()
+      .default("draft"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    publishedAt: integer("published_at"),
+    deletedAt: integer("deleted_at"),
+  },
+  (t) => [
+    index("idx_quiz_timeline").on(t.status, t.deletedAt, t.createdAt),
+    index("idx_quiz_author").on(t.authorId),
+  ],
+);
+
+// Part of the quiz aggregate (cascades from quiz).
+export const question = sqliteTable(
+  "question",
+  {
+    id: text("id").primaryKey(),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quiz.id, { onDelete: "cascade" }),
+    type: text("type", { enum: ["mcq_single", "mcq_multi"] }).notNull(),
+    prompt: text("prompt").notNull(), // Markdown, sanitized at render
+    explanation: text("explanation"), // revealed only after grading
+    position: integer("position").notNull(),
+  },
+  (t) => [index("idx_question_quiz").on(t.quizId, t.position)],
+);
+
+// Part of the quiz aggregate (cascades from question). is_correct must NEVER be
+// sent to the client before grading (anti-cheat — grading is server-authoritative).
+export const choice = sqliteTable(
+  "choice",
+  {
+    id: text("id").primaryKey(),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => question.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    isCorrect: integer("is_correct").notNull(), // 0|1
+    position: integer("position").notNull(),
+  },
+  (t) => [index("idx_choice_question").on(t.questionId, t.position)],
+);
+
+// A user's run at a quiz. Private to the user. quiz_id does NOT cascade: attempt
+// history is preserved independently of the quiz lifecycle (quiz uses soft delete).
+export const attempt = sqliteTable(
+  "attempt",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quiz.id),
+    startedAt: integer("started_at").notNull(),
+    finishedAt: integer("finished_at"), // set once all questions answered
+    score: integer("score"),
+    total: integer("total"),
+  },
+  (t) => [
+    index("idx_attempt_user_quiz").on(t.userId, t.quizId),
+    index("idx_attempt_quiz").on(t.quizId),
+  ],
+);
+
+// One graded submission per question per attempt (enforced by the unique index).
+// is_correct is frozen at write time and never recomputed, even on quiz edits.
+// question_id does NOT cascade: historical answers survive question changes.
+export const attemptAnswer = sqliteTable(
+  "attempt_answer",
+  {
+    id: text("id").primaryKey(),
+    attemptId: text("attempt_id")
+      .notNull()
+      .references(() => attempt.id, { onDelete: "cascade" }),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => question.id),
+    response: text("response").notNull(), // JSON array of selected choice ids
+    isCorrect: integer("is_correct").notNull(), // 0|1
+    answeredAt: integer("answered_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("idx_attempt_answer_unique").on(t.attemptId, t.questionId),
+  ],
+);
