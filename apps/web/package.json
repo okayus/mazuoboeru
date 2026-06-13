@@ -8,6 +8,7 @@
     "build": "vite build",
     "deploy": "pnpm build && wrangler deploy",
     "check": "tsc --noEmit",
+    "test": "vitest run",
     "db:migrate": "wrangler d1 migrations apply mazuoboeru-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote"
   },
@@ -27,6 +28,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
+    "vitest": "^4.1.8",
     "wrangler": "^3.100.0"
   }
 }

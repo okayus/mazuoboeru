@@ -4,6 +4,7 @@ import { optionalAuth, requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
+import { quizzesRouter } from "./routes/quizzes";
 import { tokensRouter } from "./routes/tokens";
 import type { User } from "./db/schema";
 import type { Env } from "./types";
@@ -38,6 +39,9 @@ api.post("/auth/logout", requireAuth, async (c) => {
 
 // PAT management (session-only).
 api.route("/tokens", tokensRouter);
+
+// Quiz author CRUD + publish gate (session or PAT with quiz:write).
+api.route("/quizzes", quizzesRouter);
 
 app.route("/api", api);
 
