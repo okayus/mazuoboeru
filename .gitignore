@@ -14,6 +14,9 @@ build/
 .env
 .env.*
 !.dev.vars.example
+# production Worker Secrets fed to `scripts/put-prod-secrets.sh` (host-only)
+.prod-secrets
+!.prod-secrets.example
 
 # local-only dev sandbox overrides (host-specific paths, e.g. skills mount)
 docker-compose.override.yml
