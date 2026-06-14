@@ -10,7 +10,8 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "wrangler d1 migrations apply mazuoboeru-db --local",
-    "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote"
+    "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote",
+    "secrets:prod": "bash scripts/put-prod-secrets.sh"
   },
   "dependencies": {
     "arctic": "^3.7.0",
