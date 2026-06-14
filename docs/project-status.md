@@ -7,7 +7,7 @@
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
-> **最終更新: 2026-06-13**（更新したら日付と §「いま動いているもの」を直す）
+> **最終更新: 2026-06-14**（更新したら日付と §「いま動いているもの」を直す）
 
 ---
 
@@ -16,7 +16,7 @@
 - **何**: 学んだことをクイズ化して反復で覚える **公開 SaaS**。マルチユーザーで、**クイズは必ず公開**され誰でも他人のクイズに挑戦できる。中心課題は UGC の安全表示（XSS サニタイズ）・モデレーション・サーバー側採点（カンニング防止）。
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
-- **ただし最大の穴**: **本番の OAuth ログインが未設定**。ブラウザから Google/GitHub で実際にはまだログインできない（→ §「ここから必要なもの A」）。
+- **ただし最大の穴**: **本番の OAuth ログインが未設定**。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）で、その GitHub ログインがまだブラウザから通らない（→ §「ここから必要なもの A」）。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
@@ -31,7 +31,7 @@
 | 認証セッション API | ✅ | `/api/auth/me` が `{"user":null}`（未認証） |
 | 認可ガード | ✅ | `GET /api/quizzes/mine`→401、`POST /api/tokens`→403（CSRF Origin 検証が発火） |
 | セキュリティヘッダ | ✅ | strict CSP（`default-src 'self'` ベース）・HSTS・`X-Content-Type-Options:nosniff`・`X-Frame-Options:DENY` が本番で付与 |
-| **本番 OAuth ログイン** | ❌ **未設定** | `/auth/google`・`/auth/github` が `Location: /?auth_error=provider_unconfigured`＝client secret 未投入 |
+| **本番 OAuth ログイン（MVP=GitHub のみ）** | ❌ **未設定** | `/auth/github` が `Location: /?auth_error=provider_unconfigured`＝GitHub の client secret 未投入。Google は MVP では出さない（ADR-0001） |
 
 > つまり **データ層・公開読み取り・採点・セキュリティ境界は本番で生きている**が、**人間がログインする入口だけが開通していない**。
 
@@ -44,13 +44,15 @@
 
 ### A. Phase 1 を「人が実際に使える」状態にする（最優先・大半は人手）
 
-1. **本番 OAuth クライアント作成**（Google / GitHub）。redirect URI は両方とも
-   `https://mazuoboeru.shiraoka.workers.dev/auth/callback/{google,github}`。
-2. **本番 Worker Secrets 投入**（`wrangler secret put`、コードは名前参照のみ）:
-   `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `PAT_PEPPER`。
-   → 投入後 `/auth/google` の `Location` が `accounts.google.com` に変われば開通（§「確かめ方」）。
-3. **dev 用 OAuth クライアント**（redirect=localhost）＋ `.dev.vars`（`apps/web/.dev.vars.example` 参照）。`PAT_PEPPER` も dev 用に。→ これで OAuth ログインの実ブラウザ一周（縦切りの未検証部分）をローカルで確認できる。
-4. **Playwright e2e** で OAuth 込みの一周を自動化（スキル `cloudflare-workers-e2e-playwright`。strict CSP × Vite HMR の罠に注意）。
+> **MVP は GitHub ログインのみ**（Google は可逆保留＝ADR-0001。動機: Google の console 作業が複数プロジェクトでスケールしない／無料プロジェクト数の上限）。Google を後で足すのは redirect URI 追加＋secret 投入で無痛。
+
+1. **GitHub OAuth App 作成**（`github.com/settings/applications/new`、審査なしの一枚フォーム）。Authorization callback URL:
+   `https://mazuoboeru.shiraoka.workers.dev/auth/callback/github`。
+2. **本番 Worker Secrets 投入**（ホストで `pnpm secrets:prod`＝`apps/web/scripts/put-prod-secrets.sh`。secret 値はサンドボックスに入れない＝ADR-0003）:
+   `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `PAT_PEPPER`（必須）。`GOOGLE_*` は任意（両方揃った時のみ投入）。
+   → 投入後 `/auth/github` の `Location` が `github.com` に変われば開通（§「確かめ方」）。
+3. **dev 用 GitHub OAuth App**（callback=localhost）＋ `.dev.vars`（`apps/web/.dev.vars.example` 参照）。`PAT_PEPPER` も dev 用に。→ これで GitHub ログインの実ブラウザ一周（縦切りの未検証部分）をローカルで確認できる。
+4. **Playwright e2e** で GitHub ログイン込みの一周を自動化（スキル `cloudflare-workers-e2e-playwright`。strict CSP × Vite HMR の罠に注意）。
 
 > `RP_ID` / `ORIGIN` は wrangler.jsonc が本番値、`.dev.vars` が localhost 上書き（設定済み）。
 
@@ -77,9 +79,9 @@ curl -s https://mazuoboeru.shiraoka.workers.dev/health                 # → {"s
 # 本番 D1 にテーブルがあるか（JSON が返れば適用済み / 500 なら未適用）
 curl -s https://mazuoboeru.shiraoka.workers.dev/api/public/quizzes      # → {"quizzes":[...]}
 
-# 本番 OAuth が開通したか（Location を見る）
-curl -s -o /dev/null -D - https://mazuoboeru.shiraoka.workers.dev/auth/google | grep -i location
-#   accounts.google.com…            → 設定済み（開通）
+# 本番 OAuth が開通したか（MVP=GitHub。Location を見る）
+curl -s -o /dev/null -D - https://mazuoboeru.shiraoka.workers.dev/auth/github | grep -i location
+#   github.com…                      → 設定済み（開通）
 #   /?auth_error=provider_unconfigured → secret 未投入（未開通）
 
 # 本番のセキュリティヘッダ
