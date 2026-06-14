@@ -17,6 +17,7 @@
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
+- **直近の前進**: **B2（認証ルートのレート制限＋observability）も merge・デプロイ済み**（2026-06-14、#28）。**残りの Phase 1 は A4 e2e / B1 通報チャネル / B3 cli**（次の最有力は B1）。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
@@ -32,6 +33,7 @@
 | 認可ガード | ✅ | `GET /api/quizzes/mine`→401、`POST /api/tokens`→403（CSRF Origin 検証が発火） |
 | セキュリティヘッダ | ✅ | strict CSP（`default-src 'self'` ベース）・HSTS・`X-Content-Type-Options:nosniff`・`X-Frame-Options:DENY` が本番で付与 |
 | **本番 OAuth ログイン（MVP=GitHub のみ）** | ✅ **開通** | `/auth/github` → `github.com/login/oauth/authorize`（client_id/redirect_uri/scope 確認）。prod・dev ともブラウザ実ログイン確認済み。Google は MVP では出さない（ADR-0001） |
+| **レート制限 / observability（B2）** | ✅ **デプロイ済み** | #28 merge＋Workers Builds success。`AUTH_RATE_LIMITER`(30/60s)・observability 100% を OAuth begin/callback に。CLI 検証は v3 偽陰性／挙動バーストは不確定＝**稼働確定は Dashboard**（§ハマりどころ） |
 
 > つまり **データ層・公開読み取り・採点・セキュリティ境界・ログイン入口まで本番で生きている**。Phase 1 縦切りは人間がブラウザで端から端まで使える状態。
 
@@ -56,7 +58,7 @@
 ### B. Phase 1 スコープでまだ無い機能（縦切りに含めなかった分）
 
 - **通報チャネル**（クイズ/設問/ユーザ単位・選択肢理由＋自由記述・レート制限 10 件/日/ユーザ）。テーブル＋endpoint＋通報ボタン。公開サービスとして MVP 必須（admin UI は Phase 4）。
-- **認証ルートのレート制限** → **PR 進行中（B2）**。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s) を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式・fail-open）。スキル `cloudflare-workers-bot-scan-defense`。投稿の per-user 制限は別途。
+- ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（残）。
 - **`apps/cli` の最小実装**（PAT を env から読んで `POST /api/quizzes` を叩く薄い Node スクリプト、npm 未配信）。AI/CLI でのクイズ量産導線。
 
 ### C. その先（Phase 2 以降の入口）
