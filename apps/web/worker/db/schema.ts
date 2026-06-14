@@ -200,6 +200,36 @@ export const attemptAnswer = sqliteTable(
   ],
 );
 
+// Moderation report channel (Phase 1 MVP). A user reports a quiz/question/user with
+// a reason category + optional free text. target_id is a free-text id (NOT an FK —
+// target_type selects which table it points at) so a report survives a soft-delete /
+// hide of its target, leaving the moderator something to act on. reporter_id cascades
+// (a deleted user's reports go with them). Triage is manual via wrangler in MVP;
+// Discord notify is Phase 2, admin UI Phase 4 (docs/data-model.md, roadmap.md).
+export const report = sqliteTable(
+  "report",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetType: text("target_type", { enum: ["quiz", "question", "user"] }).notNull(),
+    targetId: text("target_id").notNull(),
+    reasonCategory: text("reason_category", {
+      enum: ["spam", "sexual", "violence", "copyright", "other"],
+    }).notNull(),
+    reasonText: text("reason_text"), // optional free text, max 500 chars (enforced in route)
+    status: text("status", { enum: ["open", "actioned", "dismissed"] })
+      .notNull()
+      .default("open"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    index("idx_report_status").on(t.status, t.createdAt), // moderator triage
+    index("idx_report_reporter").on(t.reporterId, t.createdAt), // per-user rate-limit window
+  ],
+);
+
 // Inferred row types for use across the worker (query results / inserts).
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -210,3 +240,4 @@ export type Question = typeof question.$inferSelect;
 export type Choice = typeof choice.$inferSelect;
 export type Attempt = typeof attempt.$inferSelect;
 export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
+export type Report = typeof report.$inferSelect;

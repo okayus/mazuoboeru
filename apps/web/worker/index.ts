@@ -7,6 +7,7 @@ import { csrf, securityHeaders } from "./middleware/security";
 import { attemptsRouter } from "./routes/attempts";
 import { publicRouter } from "./routes/public";
 import { quizzesRouter } from "./routes/quizzes";
+import { reportsRouter } from "./routes/reports";
 import { tokensRouter } from "./routes/tokens";
 import type { User } from "./db/schema";
 import type { Env } from "./types";
@@ -50,6 +51,9 @@ api.route("/public", publicRouter);
 
 // Attempts: start/resume, submit one answer (server-graded), get state.
 api.route("/attempts", attemptsRouter);
+
+// Moderation report channel (session-only, per-user rate limited).
+api.route("/reports", reportsRouter);
 
 app.route("/api", api);
 
