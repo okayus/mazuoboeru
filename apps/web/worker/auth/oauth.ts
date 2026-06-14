@@ -12,6 +12,7 @@ import { db } from "../db/client";
 import { oauthAccount, user, type User } from "../db/schema";
 import { newId } from "../lib/id";
 import type { Bindings, Env } from "../types";
+import { authRateLimit } from "../middleware/rate-limit";
 import { createSession } from "./session";
 
 type Provider = "google" | "github";
@@ -188,6 +189,10 @@ function authError(c: Context<Env>, code: string): Response {
 }
 
 export const authRouter = new Hono<Env>();
+
+// Per-IP rate limit on the only pre-auth surface that does real work (OAuth
+// begin + callback). worker/middleware/rate-limit.ts; skill bot-scan-defense.
+authRouter.use("*", authRateLimit);
 
 // Begin login: redirect to the provider's authorization URL.
 authRouter.get("/:provider", (c) => {
