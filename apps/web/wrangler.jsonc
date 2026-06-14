@@ -28,5 +28,26 @@
   ],
   "triggers": {
     "crons": ["15 * * * *"]
+  },
+  // 100% observability so bot-scan / probe traffic is visible (skill:
+  // cloudflare-workers-bot-scan-defense). Traffic is low now; lower the sampling
+  // rate if volume grows.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  // Per-IP rate limit for the unauthenticated OAuth routes (begin + callback).
+  // wrangler 3.x has no top-level `ratelimits` key, so this uses the `unsafe`
+  // ratelimit binding form. `simple.period` must be 10 or 60. Consumed in
+  // worker/middleware/rate-limit.ts, which fails open if the binding is absent.
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "AUTH_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
   }
 }

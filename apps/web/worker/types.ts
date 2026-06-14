@@ -11,6 +11,11 @@ export type Bindings = {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   PAT_PEPPER?: string;
+  // Per-IP rate limiter for the unauthenticated OAuth routes. Provisioned as an
+  // `unsafe` ratelimit binding in wrangler.jsonc (wrangler 3.x has no top-level
+  // `ratelimits` key). `RateLimit` is a global @cloudflare/workers-types type.
+  // Optional: absent in local dev, so the middleware fails open.
+  AUTH_RATE_LIMITER?: RateLimit;
   // Add more bindings (KV, etc.) as needed. Every other worker file imports from here — don't re-declare the type.
 };
 
