@@ -7,7 +7,9 @@
     "deploy": "pnpm --filter @mazuoboeru/web run deploy",
     "check": "pnpm --filter @mazuoboeru/web check",
     "db:migrate": "pnpm --filter @mazuoboeru/web db:migrate",
-    "db:migrate:prod": "pnpm --filter @mazuoboeru/web db:migrate:prod"
+    "db:migrate:prod": "pnpm --filter @mazuoboeru/web db:migrate:prod",
+    "check:e2e": "pnpm --filter @mazuoboeru/web check:e2e",
+    "e2e": "pnpm --filter @mazuoboeru/web e2e"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": { "node": ">=20" }

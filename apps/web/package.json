@@ -8,10 +8,14 @@
     "build": "vite build",
     "deploy": "pnpm build && wrangler deploy",
     "check": "tsc --noEmit",
+    "check:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
     "db:migrate": "wrangler d1 migrations apply mazuoboeru-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote",
-    "secrets:prod": "bash scripts/put-prod-secrets.sh"
+    "secrets:prod": "bash scripts/put-prod-secrets.sh",
+    "e2e": "playwright test",
+    "e2e:db": "node e2e/seed.ts",
+    "e2e:server": "pnpm build && pnpm run e2e:db && node e2e/prepare-config.ts && wrangler dev --config dist/mazuoboeru/wrangler.json --persist-to .wrangler/state-e2e --ip 127.0.0.1 --port 5399"
   },
   "dependencies": {
     "arctic": "^3.7.0",
@@ -28,6 +32,8 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^0.1.0",
     "@cloudflare/workers-types": "^4.20250328.0",
+    "@playwright/test": "1.60.0",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",

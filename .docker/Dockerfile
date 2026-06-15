@@ -121,6 +121,35 @@ RUN if [ "$INSTALL_HASKELL" = "true" ]; then \
     fi
 ENV PATH=$PATH:/home/node/.ghcup/bin
 
+# Playwright Chromium for in-container e2e (apps/web/e2e). Like the toolchains above,
+# the browser + its OS libraries are fetched at BUILD time (network is open then), so
+# NONE of this needs a runtime egress-allowlist entry — the e2e drives a LOCAL
+# `wrangler dev` on 127.0.0.1 and never egresses (the GitHub OAuth round-trip is
+# bypassed by a seeded-session seam; see apps/web/e2e/README.md). Installed into the
+# shared /ms-playwright so the runtime `node` user can read it.
+#
+# PLAYWRIGHT_VERSION MUST match @playwright/test in apps/web/package.json — bump BOTH
+# together and rebuild the image. The runtime CDN is blocked, so a version drift can't
+# self-heal via `playwright install`; it surfaces as "browser not found" until rebuild.
+ARG INSTALL_PLAYWRIGHT=false
+ARG PLAYWRIGHT_VERSION=1.60.0
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+USER root
+# `apt-get update` first: an earlier layer cleaned /var/lib/apt/lists, so `--with-deps`
+# (which apt-installs Chromium's libs) would otherwise fail to locate packages. Re-clean
+# after to keep the layer lean.
+RUN if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
+      apt-get update && \
+      mkdir -p /ms-playwright && \
+      npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium && \
+      chmod -R a+rX /ms-playwright && \
+      apt-get clean && rm -rf /var/lib/apt/lists/* ; \
+    fi
+USER node
+# After the build-time install: stop `pnpm install` from re-downloading browsers at
+# runtime (the CDN is blocked then) — the browser is already baked at the path above.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 
 # Copy and set up firewall script
 COPY init-firewall.sh /usr/local/bin/

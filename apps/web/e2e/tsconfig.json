@@ -1,0 +1,13 @@
+{
+  // Typecheck for the e2e harness (specs + seed). Separate from the app tsconfig
+  // because seed.ts imports "./fixtures.ts" with the extension node24 requires
+  // (allowImportingTsExtensions), and the harness runs on node/Playwright — not the
+  // Workers or DOM globals the app is typed against.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["@playwright/test", "node"]
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}

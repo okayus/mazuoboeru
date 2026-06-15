@@ -14,6 +14,11 @@ services:
         # both false reproduces the original Node/TS-only image.
         INSTALL_RUST: "false"
         INSTALL_HASKELL: "false"
+        # Bakes Playwright Chromium + its OS libs at build time so `pnpm e2e`
+        # (apps/web/e2e) runs fully in-container — no runtime egress (browser → local
+        # 127.0.0.1 Worker only). Adds ~0.4 GB to the image. After changing this or the
+        # pinned PLAYWRIGHT_VERSION, rebuild: docker compose down && build && up -d.
+        INSTALL_PLAYWRIGHT: "true"
     container_name: mazuoboeru-dev
     # Required so init-firewall.sh can program iptables/ipset.
     cap_add:

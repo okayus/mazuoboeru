@@ -5,6 +5,11 @@ build/
 .wrangler/
 *.log
 
+# Playwright e2e output (apps/web)
+test-results/
+playwright-report/
+.playwright/
+
 # pnpm content-addressable store (created project-local in the container for
 # cross-filesystem hardlinks; never commit it — the lockfile is the source of truth)
 .pnpm-store/
