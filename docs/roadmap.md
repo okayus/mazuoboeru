@@ -70,6 +70,7 @@
 | 12 | 公開ゲート（同上） | publish 時にサーバが採点可能性を強制（タイトル/設問≥1/選択肢≥2/正解数、strict 採点） | [ADR-0002](adr/0002-publish-flow-and-edit-rules.md) |
 | 13 | UGC 描画（同上） | react-markdown + rehype-sanitize（生 HTML 非描画）、単一 renderer で拡張可、画像/mermaid は Phase 2 | [ADR-0004](adr/0004-ugc-markdown-rendering.md) |
 | 14 | ドメイン配置 / PAT（同上） | 採点等は `worker/domain`・スキーマは `worker/db` に同居（packages は第2 consumer まで保留）、PAT は `mzo_pat_` 形式・既定無期限 | [tech-stack.md](tech-stack.md), [data-model.md](data-model.md) |
+| 15 | node ポスチャー（2026-06-15） | host/sandbox/CI を node24 に統一、CLI は `.ts` をネイティブ実行（tsx/build なし） | [ADR-0005](adr/0005-node24-native-ts-execution.md) |
 
 ## 持ち越し（Phase 2 以降で再開）
 
@@ -85,6 +86,7 @@
 - [x] Phase 0：pnpm workspaces 骨格生成 → `cloudflare-workers-deploy-skeleton` で「歩く骨格」を本番 `/health` 200 まで通す（2026-06-11）。
 - [x] 最初の縦切り: 「Google/GitHub ログイン → クイズ作成（`mcq_single`/`mcq_multi`） → 明示公開 → 別アカウントで挑戦 → サーバー採点 → 即時フィードバック」を実装（2026-06-12、`claude/phase1-vertical-slice`。バックエンドは PAT/Bearer で一周検証済み。OAuth 実ブラウザ一周は dev クライアント要）。
 - [x] PAT 発行 UI + Bearer middleware を最初の縦切りに同梱。
+- [x] **`apps/cli` 最小実装**（`mzo` の create/publish、node24 で `.ts` ネイティブ実行＝[ADR-0005](adr/0005-node24-native-ts-execution.md)。2026-06-15・未 merge・本番煙テストは実 PAT 待ち）。
 - [x] **本番 D1 へ 0001 マイグレーション適用**（2026-06-13 実機確認: `/api/public/quizzes` が 500 でなく JSON を返す）。
 - [ ] デプロイ前提の人手作業（[project-status.md](project-status.md) §A）: 本番 OAuth クライアント＋ Worker Secrets（OAuth×4＋`PAT_PEPPER`）、dev OAuth クライアント＋`.dev.vars`。完了で本番ブラウザログインが開通する。
 - [ ] Playwright e2e（`cloudflare-workers-e2e-playwright`）で OAuth 込みの一周を自動化。

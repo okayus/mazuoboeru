@@ -1,4 +1,6 @@
-FROM node:20
+# node24: host/sandbox/CI を統一し、CLI(.ts) をビルド無しでネイティブ実行する
+# （ネイティブ type stripping は node>=22.18）。根拠は docs/adr/0005-node24-native-ts-execution.md。
+FROM node:24
 
 ARG TZ
 ENV TZ="$TZ"
@@ -82,7 +84,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # ── Optional language toolchains (opt-in via build args) ─────────────────────
-# node:20 is the base because Claude Code itself is an npm package and needs a
+# node:24 is the base because Claude Code itself is an npm package and needs a
 # Node runtime even in a Rust/Haskell-only project. These toolchains are layered
 # on top and only installed when their build arg is "true".
 #

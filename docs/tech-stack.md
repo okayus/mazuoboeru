@@ -57,7 +57,7 @@ mazuoboeru/
 │   │   │   └── db/    #   Drizzle スキーマ & クエリ（＝packages/db の前身）
 │   │   ├── drizzle/   #   D1 マイグレーション（drizzle-kit 出力）
 │   │   └── wrangler.jsonc
-│   └── cli/           # @mazuoboeru/cli    : CLI / AI エージェント用（PAT で API を叩く薄い層）※ロジック発生時に追加
+│   └── cli/           # @mazuoboeru/cli    : CLI / AI エージェント用（PAT で API を叩く薄い層）※2026-06-15 最小実装（mzo）
 ├── packages/
 │   ├── core/          # @mazuoboeru/core   : 純粋関数（採点・SRS・集計）※ロジック発生時に追加
 │   └── db/            # @mazuoboeru/db     : Drizzle スキーマ & クエリ ※ロジック発生時に追加
@@ -67,4 +67,4 @@ mazuoboeru/
 - ビルド orchestration は plain pnpm scripts（`pnpm -r --topological run build` 等）。turborepo は build キャッシュが痛くなるまで導入しない。
 - TypeScript は root の `tsconfig.base.json` を各パッケージが extends。`tsc --build`（project references）は使わず、vite/wrangler のバンドラに任せる。
 - 境界の強制は ESLint `no-restricted-imports`（例: `apps/web/src`（SPA）から `apps/web/worker` への直接 import 禁止、共有は `packages/core` 経由）。
-- `apps/cli` は MVP では npm 未配信（`pnpm --filter @mazuoboeru/cli start`）。Phase 2 で `esbuild` バンドル＋ `npx @mazuoboeru/cli` 配信。
+- `apps/cli` は MVP では npm 未配信。**node24 で `.ts` をネイティブ実行**（ビルド無し＝`node apps/cli/src/index.ts …` / `pnpm --filter @mazuoboeru/cli mzo`、[ADR-0005](adr/0005-node24-native-ts-execution.md)）。Phase 2 で `esbuild` バンドル＋ `npx @mazuoboeru/cli` 配信。

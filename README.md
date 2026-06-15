@@ -42,7 +42,7 @@ mazuoboeru/
 ├── docs/              # 企画ドキュメント・ADR
 ├── apps/
 │   ├── web/           # @mazuoboeru/web : React 19 + Vite SPA ＋ Worker（Hono）＋ D1 マイグレーション同梱
-│   └── cli/           # @mazuoboeru/cli : CLI / AI エージェント用（ロジック発生時に追加）
+│   └── cli/           # @mazuoboeru/cli : PAT でクイズ作成/公開する薄い CLI（mzo・2026-06-15）
 └── packages/
     ├── core/          # @mazuoboeru/core : 採点・SRS・集計（純粋関数）（ロジック発生時に追加）
     └── db/            # @mazuoboeru/db   : Drizzle スキーマ & クエリ（ロジック発生時に追加）
