@@ -34,7 +34,8 @@ export default defineConfig({
   timeout: 30_000,
   use: {
     baseURL,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   webServer: {
     // build → seed local e2e D1 → pin e2e vars → serve the built Worker. See package.json.

@@ -44,6 +44,14 @@ export function Challenge({ quizId }: { quizId: string }) {
       });
   }, [quizId]);
 
+  // Stable across renders (functional setState needs no deps) so memo(QuestionCard)
+  // can skip the sibling cards when one question's feedback changes. MUST be declared
+  // before the early returns below: a hook after a conditional return changes the hook
+  // count between the first (state===null) and later renders → React error #310.
+  const onAnswered = useCallback((questionId: string, fb: Feedback) => {
+    setFeedback((prev) => ({ ...prev, [questionId]: fb }));
+  }, []);
+
   if (needLogin)
     return (
       <p>
@@ -56,12 +64,6 @@ export function Challenge({ quizId }: { quizId: string }) {
   const answeredCount = Object.keys(feedback).length;
   const total = state.quiz.questions.length;
   const score = Object.values(feedback).filter((f) => f.isCorrect).length;
-
-  // Stable across renders (functional setState needs no deps) so memo(QuestionCard)
-  // can skip the sibling cards when one question's feedback changes.
-  const onAnswered = useCallback((questionId: string, fb: Feedback) => {
-    setFeedback((prev) => ({ ...prev, [questionId]: fb }));
-  }, []);
 
   return (
     <div>
