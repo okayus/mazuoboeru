@@ -14,10 +14,10 @@
 ## 30秒で把握
 
 - **何**: 学んだことをクイズ化して反復で覚える **公開 SaaS**。マルチユーザーで、**クイズは必ず公開**され誰でも他人のクイズに挑戦できる。中心課題は UGC の安全表示（XSS サニタイズ）・モデレーション・サーバー側採点（カンニング防止）。
-- **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。
+- **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。**node は host/sandbox/CI とも node24**（ADR-0005。`apps/cli` の `.ts` はビルド無しネイティブ実行）。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
-- **直近の前進**（2026-06-15）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を実装**（`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。型/単体26件/サンドボックス内実行まで緑・**未 merge**・本番 create→publish 煙テストは実 PAT 待ち）。**残りの Phase 1 は A4 e2e と B2 投稿 per-user 制限**。
+- **直近の前進**（2026-06-15）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を merge・本番デプロイ・本番実証**（#38。`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。本番で実 PAT による create→作者 API で内容一致→非公開確認→ソフト削除まで実機確認）。**A4 e2e はハーネス実装＋サーバ側検証済み**（branch `claude/phase1-e2e`・未 merge。本番コードに認証バイパスを足さず session seam＋ビルド成果物を `wrangler dev` で駆動。実ブラウザ実行はホスト＝Chromium DL が egress allowlist 外）。**残りの Phase 1 は A4 のホスト実ブラウザ実行と B2 投稿 per-user 制限**。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
@@ -35,6 +35,7 @@
 | **本番 OAuth ログイン（MVP=GitHub のみ）** | ✅ **開通** | `/auth/github` → `github.com/login/oauth/authorize`（client_id/redirect_uri/scope 確認）。prod・dev ともブラウザ実ログイン確認済み。Google は MVP では出さない（ADR-0001） |
 | **レート制限 / observability（B2）** | ✅ **デプロイ済み** | #28 merge＋Workers Builds success。`AUTH_RATE_LIMITER`(30/60s)・observability 100% を OAuth begin/callback に。CLI 検証は v3 偽陰性／挙動バーストは不確定＝**稼働確定は Dashboard**（§ハマりどころ） |
 | **通報チャネル（B1）** | ✅ **稼働（migration も自動適用済み）** | #32 merge＋Workers Builds success。`POST /api/reports` は Origin 無し→403 / 未ログイン→401（結線確認）。**本番 D1 に `report` テーブル実在を確認**（host `wrangler d1 execute --remote "SELECT name FROM sqlite_master ... name='report'"` → report）。**migration は Workers Builds が自動適用**（deploy command = `d1 migrations apply --remote && wrangler deploy`）＝人手不要 |
+| **PAT 経由のクイズ作成（量産導線・B3）** | ✅ **本番実証** | `mzo create` が本番 D1 に draft 生成→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→soft-delete 動作（#38・実 PAT）。CSRF は Bearer exempt で PAT は Origin 不要 |
 
 > つまり **データ層・公開読み取り・採点・セキュリティ境界・ログイン入口まで本番で生きている**。Phase 1 縦切りは人間がブラウザで端から端まで使える状態。
 
@@ -52,7 +53,7 @@
 1. ~~**GitHub OAuth App 作成**~~ → ✅ 完了（prod 用1個・dev 用1個。OAuth App は callback 1個のみ＝**環境ごとに別 App** が要る）。
 2. ~~**本番 Worker Secrets 投入**（`pnpm secrets:prod`＝`apps/web/scripts/put-prod-secrets.sh`、ADR-0003）~~ → ✅ 完了。`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`PAT_PEPPER` 投入、`/auth/github` 開通確認。
 3. ~~**dev 用 GitHub OAuth App ＋ `.dev.vars`**~~ → ✅ 完了。`pnpm dev --host`（host 5373）でローカル一周確認（ローカル D1 はシード入り・自動 migrate）。
-4. **Playwright e2e** で GitHub ログイン込みの一周を自動化（スキル `cloudflare-workers-e2e-playwright`。strict CSP × Vite HMR の罠に注意）。← **残タスク**
+4. ~~**Playwright e2e** で一周を自動化~~ → ✅ **ハーネス実装＋サーバ側検証済み**（branch `claude/phase1-e2e`・未 merge）。**残: ホストで実ブラウザ実行**。`apps/web/e2e/` に 3 spec＝計6テスト（golden path＝作者が作成→公開→**別アカウントで挑戦→サーバ採点** ／ authz 境界＝他者 draft は 404・未認証 401 ／ security headers が全レスポンスに付与）。**本番コードに認証バイパスを足さない**のが要点: login は GitHub OAuth（callback の server→github.com 往復はヘッドレス不可）なので、テスト側で D1 に `session` 行を seed（`id=sha256(token)` を `worker/auth/session.ts` と同一スキームで算出）しブラウザに cookie 注入＝**本番 `getSessionUser` を実通過**（DEV_BYPASS を足さない＝スキル準拠。理由は `apps/web/e2e/README.md`）。`wrangler dev` でビルド成果物を駆動（vite dev を避け CSP×HMR 罠回避）＋`--persist-to`（D1 state 罠回避）。**コンテナでは Chromium DL が egress allowlist 外＝実ブラウザ不可**なので、build/seed/wrangler dev/curl で **seam ログイン・golden path API（create→publish→挑戦→採点／is_correct 非開示）・authz・ヘッダ・CSRF(403/201)** を credential なしで実機確認済み、`pnpm check:e2e`＋`playwright --list`(6 tests) も緑。ホストでは `playwright install chromium` 後に `pnpm e2e`。罠: e2e worker は `--ip 127.0.0.1`（`localhost` 経路は sandbox の IPv4/IPv6 解決で worker 無応答）。スキル `cloudflare-workers-e2e-playwright`。
 
 > `RP_ID` / `ORIGIN` は wrangler.jsonc が本番値、`.dev.vars` が localhost 上書き。dev は host 経由 5373 に合わせ `ORIGIN=http://localhost:5373` と dev App の callback を一致させる。
 
@@ -60,7 +61,7 @@
 
 - ~~通報チャネル~~ → ✅ **実装・merge・本番デプロイ済み（#32）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**本番 D1 へ `0002_report.sql` は Workers Builds が #32 デプロイ時に自動適用済み**（`report` テーブル実在を host `wrangler d1 execute --remote` で確認。migration は手で当てない＝§ハマりどころ「D1 マイグレーションは自動適用」）。残タスクなし。
 - ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（残）。
-- ~~`apps/cli` の最小実装~~ → ✅ **実装済み（未 merge・2026-06-15）**。`@mazuoboeru/cli`（`mzo`）: `create`（draft 作成・id を stdout）／`publish <id>`（明示・不可逆）の2コマンド。入力は `POST /api/quizzes` の body そのもの（薄いパイプ＝検証はサーバ zod 一手）。env `MAZUOBOERU_PAT`／`MAZUOBOERU_BASE_URL`（既定=本番）。出力契約: stdout=データ・stderr=診断・exit `0/1/2`。**node24 で `.ts` をビルド無しネイティブ実行**（host/sandbox/CI を node24 に統一＝[ADR-0005](adr/0005-node24-native-ts-execution.md)。CSRF は Bearer を exempt＝`security.ts` 確認済みなので PAT 経路は Origin 不要）。純粋関数（argv/リクエスト構築/応答→exit 写像）を vitest 26件・境界は fetch 注入。型・test・サンドボックス内 help/exit 検証済み。**残: 実 PAT での本番 create→publish 煙テスト**（PAT は session 限定発行＝Web Settings で要発行）。
+- ~~`apps/cli` の最小実装~~ → ✅ **merge・本番デプロイ・本番実証済み（#38・2026-06-15）**。`@mazuoboeru/cli`（`mzo`）: `create`（draft 作成・id を stdout）／`publish <id>`（明示・不可逆）の2コマンド。入力は `POST /api/quizzes` の body そのもの（薄いパイプ＝検証はサーバ zod 一手）。env `MAZUOBOERU_PAT`／`MAZUOBOERU_BASE_URL`（既定=本番）。出力契約: stdout=データ・stderr=診断・exit `0/1/2`。**node24 で `.ts` をビルド無しネイティブ実行**（host/sandbox/CI を node24 に統一＝[ADR-0005](adr/0005-node24-native-ts-execution.md)。CSRF は Bearer を exempt＝`security.ts` 確認済みなので PAT 経路は Origin 不要）。純粋関数（argv/リクエスト構築/応答→exit 写像）を vitest 26件・境界は fetch 注入。型・test・サンドボックス内 help/exit 検証済み。本番煙テスト: 実 PAT で `create`→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→ソフト削除まで実機確認。残タスクなし。
 
 ### C. その先（Phase 2 以降の入口）
 
