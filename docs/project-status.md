@@ -17,7 +17,7 @@
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
-- **直近の前進**（2026-06-15）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**残りの Phase 1 は A4 e2e / B3 cli**。
+- **直近の前進**（2026-06-15）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を実装**（`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。型/単体26件/サンドボックス内実行まで緑・**未 merge**・本番 create→publish 煙テストは実 PAT 待ち）。**残りの Phase 1 は A4 e2e と B2 投稿 per-user 制限**。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
@@ -60,7 +60,7 @@
 
 - ~~通報チャネル~~ → ✅ **実装・merge・本番デプロイ済み（#32）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**本番 D1 へ `0002_report.sql` は Workers Builds が #32 デプロイ時に自動適用済み**（`report` テーブル実在を host `wrangler d1 execute --remote` で確認。migration は手で当てない＝§ハマりどころ「D1 マイグレーションは自動適用」）。残タスクなし。
 - ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（残）。
-- **`apps/cli` の最小実装**（PAT を env から読んで `POST /api/quizzes` を叩く薄い Node スクリプト、npm 未配信）。AI/CLI でのクイズ量産導線。
+- ~~`apps/cli` の最小実装~~ → ✅ **実装済み（未 merge・2026-06-15）**。`@mazuoboeru/cli`（`mzo`）: `create`（draft 作成・id を stdout）／`publish <id>`（明示・不可逆）の2コマンド。入力は `POST /api/quizzes` の body そのもの（薄いパイプ＝検証はサーバ zod 一手）。env `MAZUOBOERU_PAT`／`MAZUOBOERU_BASE_URL`（既定=本番）。出力契約: stdout=データ・stderr=診断・exit `0/1/2`。**node24 で `.ts` をビルド無しネイティブ実行**（host/sandbox/CI を node24 に統一＝[ADR-0005](adr/0005-node24-native-ts-execution.md)。CSRF は Bearer を exempt＝`security.ts` 確認済みなので PAT 経路は Origin 不要）。純粋関数（argv/リクエスト構築/応答→exit 写像）を vitest 26件・境界は fetch 注入。型・test・サンドボックス内 help/exit 検証済み。**残: 実 PAT での本番 create→publish 煙テスト**（PAT は session 限定発行＝Web Settings で要発行）。
 
 ### C. その先（Phase 2 以降の入口）
 
