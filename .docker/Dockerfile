@@ -135,10 +135,15 @@ ARG INSTALL_PLAYWRIGHT=false
 ARG PLAYWRIGHT_VERSION=1.60.0
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 USER root
+# `apt-get update` first: an earlier layer cleaned /var/lib/apt/lists, so `--with-deps`
+# (which apt-installs Chromium's libs) would otherwise fail to locate packages. Re-clean
+# after to keep the layer lean.
 RUN if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
+      apt-get update && \
       mkdir -p /ms-playwright && \
       npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium && \
-      chmod -R a+rX /ms-playwright ; \
+      chmod -R a+rX /ms-playwright && \
+      apt-get clean && rm -rf /var/lib/apt/lists/* ; \
     fi
 USER node
 # After the build-time install: stop `pnpm install` from re-downloading browsers at
