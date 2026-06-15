@@ -6,6 +6,7 @@ import {
   type PublicQuestion,
 } from "../api";
 import { QuizMarkdown } from "../QuizMarkdown";
+import { ReportButton } from "./ReportButton";
 
 type Feedback = {
   isCorrect: boolean;
@@ -67,6 +68,10 @@ export function Challenge({ quizId }: { quizId: string }) {
       <h2>{state.quiz.title}</h2>
       <div className="meta">作者: {state.quiz.authorDisplayName}</div>
       {state.quiz.description ? <QuizMarkdown>{state.quiz.description}</QuizMarkdown> : null}
+
+      <div className="quiz-actions">
+        <ReportButton targetType="quiz" targetId={state.quiz.id} label="このクイズを通報" />
+      </div>
 
       <p className="progress">
         進捗: {answeredCount} / {total}

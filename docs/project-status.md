@@ -57,7 +57,7 @@
 
 ### B. Phase 1 スコープでまだ無い機能（縦切りに含めなかった分）
 
-- **通報チャネル**（クイズ/設問/ユーザ単位・選択肢理由＋自由記述・レート制限 10 件/日/ユーザ）。テーブル＋endpoint＋通報ボタン。公開サービスとして MVP 必須（admin UI は Phase 4）。
+- ~~通報チャネル~~ → ✅ **実装済み（PR `claude/report-channel`）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**残: main マージ後に本番 D1 へ `0002_report.sql` を適用**（`pnpm db:migrate:prod`＝要 CF 認証＝ホスト/人手。未適用だと通報が 500）。
 - ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（残）。
 - **`apps/cli` の最小実装**（PAT を env から読んで `POST /api/quizzes` を叩く薄い Node スクリプト、npm 未配信）。AI/CLI でのクイズ量産導線。
 
@@ -103,7 +103,7 @@ curl -s https://api.github.com/repos/okayus/mazuoboeru/commits/main/check-runs
 ## ハマりどころ / 注意
 
 - **Relay-Merge 空再 merge ループ**: 過去に PR #15〜#22 が同一ツリーの空コミットを量産した（`claude/*` ローカルブランチを消さないと毎 tick 再 merge される）。merge 後はブランチ削除を確認。詳細は自動メモリ `relay-merge-loop-gotcha`。
-- **本番 D1 マイグレーション忘れ**: 新しいマイグレーションを足したら本番へ適用しないとテーブル不在で 500。`/api/public/quizzes` の応答で確認できる。
+- **本番 D1 マイグレーション忘れ**: 新しいマイグレーションを足したら本番へ適用しないとテーブル不在で 500。`/api/public/quizzes` の応答で確認できる。**いま未適用なのは `0002_report.sql`**（通報チャネル）＝main マージ後にホスト/人手で `pnpm db:migrate:prod`。適用確認は認証付き `POST /api/reports` だが、まずは存在だけなら通報して 500 が出ないことで分かる。
 - **`gh` はコンテナ内では未認証で動かない**（ホスト専用）。PR/CI 状態は上記の未認証 `curl` で読む。
 - **`wrangler versions view` は unsafe ratelimit / observability を表示しない（v3）**: wrangler 3.x の `versions view` 出力はバインド一覧に `DB`(D1)・vars・secrets しか出さず、`unsafe` 形式の ratelimit binding（`AUTH_RATE_LIMITER`）と `observability` ブロックを**描画しない**。B2（PR #28）の検証で `versions view` が空に見えても、それは未デプロイではなく CLI が出さないだけ。デプロイ済みアカウント状態の確定は**ダッシュボードが正典**（Workers & Pages → mazuoboeru → Settings → Bindings に `AUTH_RATE_LIMITER`、Observability は Observability タブ）。スキル `cloudflare-workers-bot-scan-defense` にも還元済み。
 - **デプロイ検証はコンテナから credential なしで完結できる**: 「設定が本番に乗ったか」は (1) `wrangler.jsonc` ＋消費コード（`worker/middleware/rate-limit.ts`）を読み、`curl https://api.github.com/repos/okayus/mazuoboeru/commits/main/check-runs` で `Workers Builds: mazuoboeru` の success を確認（source+pipeline の真実）、(2) 挙動テスト（`/auth/github` を 60 秒に 30 回超叩いて **429** を確認。middleware は fail-open なので、429 が返れば binding は生きている証明。出ない場合は eventual consistency でも起こるため不確定）で足りる。Cloudflare の credential が要る読み取り（`versions view`・observability の有効/無効）はホスト/ダッシュボードに残す＝**意図どおりの境界**（egress 自体は `api.cloudflare.com` を許可済み＝init-firewall.sh。ブロッカーはネットワークではなく ADR-0003 §5 が定める「鍵を境界内に置かない」）。

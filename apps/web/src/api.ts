@@ -90,6 +90,15 @@ export type CreatedToken = {
   createdAt: number;
 };
 
+export type ReportTargetType = "quiz" | "question" | "user";
+export type ReportReason = "spam" | "sexual" | "violence" | "copyright" | "other";
+export type ReportInput = {
+  targetType: ReportTargetType;
+  targetId: string;
+  reasonCategory: ReportReason;
+  reasonText?: string;
+};
+
 export type ApiError = { isApiError: true; status: number; body: unknown };
 
 export function isApiError(e: unknown): e is ApiError {
@@ -138,4 +147,10 @@ export const api = {
   createToken: (name: string) =>
     request<{ token: CreatedToken }>("/tokens", { method: "POST", body: JSON.stringify({ name }) }),
   revokeToken: (id: string) => request<{ ok: true }>(`/tokens/${id}`, { method: "DELETE" }),
+
+  report: (input: ReportInput) =>
+    request<{ ok: true; duplicate?: boolean }>("/reports", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

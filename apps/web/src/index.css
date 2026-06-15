@@ -270,6 +270,37 @@ table.tokens td {
   font-size: 0.9rem;
 }
 
+.quiz-actions {
+  margin: 6px 0 10px;
+}
+
+.report-open {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.report-open:hover {
+  color: var(--bad);
+}
+
+.report-form strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.report-form textarea {
+  resize: vertical;
+}
+
+.report-done {
+  color: var(--ok);
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
 .md :first-child {
   margin-top: 0;
 }
