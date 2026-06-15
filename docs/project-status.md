@@ -17,12 +17,12 @@
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
-- **直近の前進**: **B1 通報チャネルも merge・本番デプロイ済み**（2026-06-15、#32。B2=#28 も既済）。`0002_report.sql` は **Workers Builds が自動適用**（`report` テーブル実在を確認）＝**人手 migrate 不要**（§ハマりどころ）。**残りの Phase 1 は A4 e2e / B3 cli**。
+- **直近の前進**（2026-06-15）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**残りの Phase 1 は A4 e2e / B3 cli**。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
 
-## いま本番で動いているもの（2026-06-14 実機確認）
+## いま本番で動いているもの（2026-06-15 実機確認）
 
 | 項目 | 状態 | 確認したこと |
 | --- | --- | --- |
@@ -87,6 +87,10 @@ curl -s -o /dev/null -D - https://mazuoboeru.shiraoka.workers.dev/auth/github | 
 # 本番のセキュリティヘッダ
 curl -s -o /dev/null -D - https://mazuoboeru.shiraoka.workers.dev/ | grep -iE 'content-security-policy|strict-transport'
 
+# 通報ルートが本番で結線しているか（認証前で弾く＝credential なしで確認可）
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://mazuoboeru.shiraoka.workers.dev/api/reports \
+  -H 'Content-Type: application/json' -d '{}'   # → 403（CSRF Origin。Origin 付き未ログインなら 401）
+
 # PR / CI の状態（public リポなので未認証 REST で読める。gh は未認証では使わない）
 curl -s https://api.github.com/repos/okayus/mazuoboeru/commits/main/check-runs
 ```
@@ -98,6 +102,7 @@ curl -s https://api.github.com/repos/okayus/mazuoboeru/commits/main/check-runs
 - **コンテナ内は `claude/*` ブランチへ commit まで**。`git push` は deny、push/PR/merge は **ホスト側リレー**（systemd timer 60 秒）が自動代行。merge を任せるなら **HEAD commit 末尾に `Relay-Merge: yes`**（迷う/影響大は付けず人間 merge）。
 - **規約**: TS は関数のみ class なし／採点・正誤判定は必ずサーバー側／UGC は react-markdown + rehype-sanitize（生 HTML 非描画）／公開クエリは常に `status='published' AND deleted_at IS NULL`／秘密はコードに書かず名前参照。
 - 本番デプロイは **main マージ → Workers Builds が自動ビルド**（GitHub CI の green は ruleset が強制）。
+- **コミット時に本番状態の断定を検証するフック**（#36、`.claude/hooks/verify-prod-claims.sh`・`.claude/settings.json` の `PreToolUse`）: `git commit` 直前に発火し、(a) D1 migration 変更 (b) 本番 migration/secret/binding 状態の断定キーワードを検知すると「本番で検証してから書け」を **system-reminder で注入**（inject-only・fail-open＝ブロックはしない）。**この reminder が出たら断定の前に検証する**（migration は §ハマりどころの自動適用、green な Workers Builds=適用済み）。stale doc を本番状態として伝播した事故の決定論的な再発防止＝自動メモリ `verify-prod-state-not-stale-docs`。初回有効化時に Claude Code が信頼確認を出す。キーワードは inject-only なので調整自由。
 
 ---
 
