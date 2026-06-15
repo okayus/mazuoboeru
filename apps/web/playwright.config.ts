@@ -45,5 +45,17 @@ export default defineConfig({
     stdout: "pipe",
     stderr: "pipe",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // In the devcontainer (Dockerfile sets DEVCONTAINER=true) Chromium's setuid
+        // sandbox can't initialize — the container has NET_ADMIN/NET_RAW but not
+        // SYS_ADMIN / user-namespace cloning — so disable it there. On the host the
+        // full sandbox is kept. The browser only ever loads our own localhost app.
+        launchOptions: process.env.DEVCONTAINER ? { args: ["--no-sandbox"] } : {},
+      },
+    },
+  ],
 });

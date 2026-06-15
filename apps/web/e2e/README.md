@@ -10,22 +10,38 @@ semantics:
 | `authorization-boundary.spec.ts` | existence-hiding (a draft is 404, not 403, to non-authors and the public), 401 on author-only routes — i.e. Hono middleware mount order |
 | `security-headers.spec.ts` | `app.use("*", securityHeaders)` riding every response (SPA shell, pure Worker route, API error) |
 
-## Run it (on the HOST, not the sandbox)
+## Run it
 
 ```bash
-pnpm --filter @mazuoboeru/web exec playwright install chromium   # one-time
 pnpm e2e            # from repo root (or: pnpm --filter @mazuoboeru/web e2e)
 ```
 
-The sandbox container **cannot** run the browser: its egress firewall has no route to
-Playwright's Chromium CDN. Author/typecheck in the container; run the browser on the
-host. (This also matches the skill's "don't run e2e in CI yet" stance — there is no
-workflow on purpose.)
+**In the devcontainer (default).** The image bakes Playwright Chromium at BUILD time
+(`.docker/Dockerfile`, `INSTALL_PLAYWRIGHT=true`), so `pnpm e2e` runs fully in-container —
+no host needed and no runtime egress (the browser only talks to the local Worker on
+127.0.0.1; the GitHub round-trip is bypassed by the seam). If you just enabled it or
+bumped the Playwright version, rebuild the image first (on the host):
 
-`pnpm e2e` is self-contained: its `webServer` runs `e2e:server`, which **builds**, then
-**migrates + seeds** a dedicated local D1 (`node e2e/seed.ts`), copies `worker.e2e.vars`
-over the built `.dev.vars`, and serves the **built Worker** via `wrangler dev`. No
-`.dev.vars` of your own is required for e2e — the seam needs no OAuth secrets.
+```bash
+docker compose down && docker compose build && docker compose up -d
+```
+
+> **Version coupling.** The baked browser must match `@playwright/test` in
+> `apps/web/package.json`; both are pinned to the **same exact version** (currently
+> `1.60.0`). Bump them together and rebuild — the runtime CDN is blocked, so
+> `playwright install` can't repair a drift inside a running container (it surfaces as
+> "browser not found"). The container runs Chromium with `--no-sandbox` (gated on
+> `DEVCONTAINER`) because it lacks the `SYS_ADMIN` cap; the host keeps the full sandbox.
+
+**On the host (no devcontainer).** One-time `pnpm --filter @mazuoboeru/web exec playwright
+install chromium`, then `pnpm e2e`.
+
+`pnpm e2e` is self-contained either way: its `webServer` runs `e2e:server`, which
+**builds**, **migrates + seeds** a dedicated local D1 (`node e2e/seed.ts`), pins
+`worker.e2e.vars` + `dev.ip` and strips the unsafe ratelimit binding (`prepare-config.ts`),
+then serves the **built Worker** via `wrangler dev --ip 127.0.0.1`. No `.dev.vars` of your
+own is required — the seam needs no OAuth secrets. (Not wired into CI yet — the skill's
+stance for a small project; run it before merge.)
 
 ## Why we drive the build artifact (not `vite dev`)
 

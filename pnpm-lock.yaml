@@ -60,7 +60,7 @@ importers:
         specifier: ^4.20250328.0
         version: 4.20260608.1
       '@playwright/test':
-        specifier: ^1.49.0
+        specifier: 1.60.0
         version: 1.60.0
       '@types/node':
         specifier: ^24.0.0
