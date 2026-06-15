@@ -7,7 +7,7 @@
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
-> **最終更新: 2026-06-14**（更新したら日付と §「いま動いているもの」を直す）
+> **最終更新: 2026-06-15**（更新したら日付と §「いま動いているもの」を直す）
 
 ---
 
@@ -17,7 +17,7 @@
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
-- **直近の前進**: **B2（認証ルートのレート制限＋observability）も merge・デプロイ済み**（2026-06-14、#28）。**残りの Phase 1 は A4 e2e / B1 通報チャネル / B3 cli**（次の最有力は B1）。
+- **直近の前進**: **B1 通報チャネルも merge・本番デプロイ済み**（2026-06-15、#32。B2=#28 も既済）。**ただし本番 D1 への `0002_report.sql` 適用が未了**（人手 `pnpm db:migrate:prod`。未適用だと認証済みの通報 POST が 500）。**残りの Phase 1 は A4 e2e / B3 cli**。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
@@ -34,6 +34,7 @@
 | セキュリティヘッダ | ✅ | strict CSP（`default-src 'self'` ベース）・HSTS・`X-Content-Type-Options:nosniff`・`X-Frame-Options:DENY` が本番で付与 |
 | **本番 OAuth ログイン（MVP=GitHub のみ）** | ✅ **開通** | `/auth/github` → `github.com/login/oauth/authorize`（client_id/redirect_uri/scope 確認）。prod・dev ともブラウザ実ログイン確認済み。Google は MVP では出さない（ADR-0001） |
 | **レート制限 / observability（B2）** | ✅ **デプロイ済み** | #28 merge＋Workers Builds success。`AUTH_RATE_LIMITER`(30/60s)・observability 100% を OAuth begin/callback に。CLI 検証は v3 偽陰性／挙動バーストは不確定＝**稼働確定は Dashboard**（§ハマりどころ） |
+| **通報チャネル（B1）ルート** | ⏳ **ルート稼働・本番 migration 待ち** | #32 merge＋Workers Builds success。`POST /api/reports` は Origin 無し→403 / 未ログイン→401（認証前で弾く＝結線確認）。**ただし `0002_report.sql` 未適用なので認証済み通報は table 不在で 500**。適用後に実機一周可（適用は人手 `pnpm db:migrate:prod`） |
 
 > つまり **データ層・公開読み取り・採点・セキュリティ境界・ログイン入口まで本番で生きている**。Phase 1 縦切りは人間がブラウザで端から端まで使える状態。
 
@@ -57,7 +58,7 @@
 
 ### B. Phase 1 スコープでまだ無い機能（縦切りに含めなかった分）
 
-- ~~通報チャネル~~ → ✅ **実装済み（PR `claude/report-channel`）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**残: main マージ後に本番 D1 へ `0002_report.sql` を適用**（`pnpm db:migrate:prod`＝要 CF 認証＝ホスト/人手。未適用だと通報が 500）。
+- ~~通報チャネル~~ → ✅ **実装・merge・本番デプロイ済み（#32）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**残（唯一）: 本番 D1 へ `0002_report.sql` を適用**（`pnpm db:migrate:prod`＝要 CF 認証＝ホスト/人手。未適用だと認証済み通報が 500。additive CREATE なので適用は安全・先行適用可）。
 - ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（残）。
 - **`apps/cli` の最小実装**（PAT を env から読んで `POST /api/quizzes` を叩く薄い Node スクリプト、npm 未配信）。AI/CLI でのクイズ量産導線。
 
