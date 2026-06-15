@@ -59,6 +59,7 @@
   - **merge も依頼できる**（2026-06-12、ADR-0003 改訂）: 仕事が完成したら**最終 commit のメッセージ末尾に `Relay-Merge: yes` トレーラー**を付ける → リレーが CI green 後に squash merge し、remote/local ブランチも削除する。トレーラーは **HEAD commit のみ有効**（後から commit を積んだら出し直す）。CI green の強制は ruleset がサーバー側で担うので、CI 完了前に付けても安全（merge が次の tick に延びるだけ）。**迷う変更・影響の大きい変更には付けない**＝従来どおり人間の merge に委ねる。
 - 採点・正誤判定は**必ずサーバー側**で（クライアントに正解を渡してから採点しない＝カンニング/不正防止）。
 - 他ユーザーのクイズ表示は**サニタイズ必須**: react-markdown ＋ rehype-sanitize で AST 描画し、生 HTML は描画しない（`dangerouslySetInnerHTML`・`rehype-raw` は使わない。`docs/adr/0004-ugc-markdown-rendering.md`）。画像・mermaid は MVP では描画しない。
+- **e2e／サンドボックスのネットワークモデルは `docs/e2e-in-sandbox.md`**（なぜコンテナ内で e2e が完結するか＝egress firewall は実行時だけ・`docker build` はネット開放、ネットが要るものはビルド時に焼き込む／再ビルドで Claude 再ログインは不要＝named volume 永続）。要点: **e2e は被テストをローカルに閉じ外部 IdP は seam で迂回（本番に認証バイパスを足さない）／e2e worker は `--ip 127.0.0.1`（`localhost` は sandbox の IPv4/IPv6 解決で無応答）／焼き込む browser と `@playwright/test` は exact pin・更新時は再ビルド**。手順は `apps/web/e2e/README.md`。
 - Claude Code 自体の機能・設定で不明な点は https://code.claude.com/docs/llms.txt を WebFetch して確認する。
 
 ## 参照スキル（okayus-skills）
