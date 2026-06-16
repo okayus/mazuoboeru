@@ -57,6 +57,13 @@ elif [ "$google_set" -eq 1 ]; then
   echo "WARN: only one of ${OPTIONAL[*]} is set — skipping Google (needs both)." >&2
 fi
 
+# Optional single-value secrets (no "needs both" coupling): put each only if set.
+# ALLOWED_CREATORS = dogfooding creator gate (docs/project-status.md); blank => gate off.
+SINGLE_OPTIONAL=(ALLOWED_CREATORS)
+for n in "${SINGLE_OPTIONAL[@]}"; do
+  [ -n "${!n:-}" ] && to_put+=("$n")
+done
+
 for n in "${to_put[@]}"; do
   echo "Putting secret: $n"
   # printf %s (no trailing newline) piped to wrangler's non-TTY stdin reader.

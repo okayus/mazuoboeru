@@ -33,7 +33,7 @@
 | [docs/tech-stack.md](docs/tech-stack.md) | 技術選定とデプロイ方式 |
 | [docs/data-model.md](docs/data-model.md) | データモデル |
 | [docs/dev-environment.md](docs/dev-environment.md) | 開発環境コンテナ・Cloudflare認証・デプロイ骨格 |
-| [docs/roadmap.md](docs/roadmap.md) | ロードマップ（MVP → 拡張）と「決めること」 |
+| [docs/project-status.md](docs/project-status.md) | 現況・残作業・**ロードマップ（フェーズ計画）** |
 
 ## ディレクトリ構成（pnpm workspaces）
 
@@ -57,4 +57,4 @@ mazuoboeru/
 [ADR-0004（UGC 描画）](docs/adr/0004-ugc-markdown-rendering.md) を記録。
 デプロイは **案A（Cloudflare Workers + D1）** を踏襲し、経路は **Workers Builds（キーレス）**。
 本番 URL は `https://mazuoboeru.shiraoka.workers.dev`（workers.dev 運用）。
-現況と残作業は [docs/project-status.md](docs/project-status.md)、長期計画は [docs/roadmap.md](docs/roadmap.md)、用語の正典は [CONTEXT.md](CONTEXT.md)。
+現況・残作業・長期計画（ロードマップ）は [docs/project-status.md](docs/project-status.md)、用語の正典は [CONTEXT.md](CONTEXT.md)。

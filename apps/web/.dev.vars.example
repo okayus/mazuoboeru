@@ -20,3 +20,8 @@ GITHUB_CLIENT_SECRET=
 
 # Pepper mixed into PAT hashes: sha256(token + PAT_PEPPER). Any long random string.
 PAT_PEPPER=
+
+# Dogfooding creator gate (optional): comma/space-separated emails allowed to
+# create/publish quizzes. Blank = gate OFF (anyone signed in can create). Not the
+# public-launch per-user rate limit — see docs/project-status.md.
+ALLOWED_CREATORS=

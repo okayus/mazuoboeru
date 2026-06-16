@@ -11,6 +11,11 @@ export type Bindings = {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   PAT_PEPPER?: string;
+  // Dogfooding creator gate: comma/space-separated emails allowed to create/publish
+  // quizzes. Empty/absent => gate OFF (open). Worker Secret in prod; .dev.vars locally.
+  // Temporary single-user gate, NOT the public-launch per-user write rate limit
+  // (docs/project-status.md). Consumed by requireCreator via domain/creator-allowlist.
+  ALLOWED_CREATORS?: string;
   // Per-IP rate limiter for the unauthenticated OAuth routes. Provisioned as an
   // `unsafe` ratelimit binding in wrangler.jsonc (wrangler 3.x has no top-level
   // `ratelimits` key). `RateLimit` is a global @cloudflare/workers-types type.
