@@ -51,6 +51,7 @@
 
 ## 働き方の規約（重要）
 
+- **着手フロー（status → 一旦返す → grill → 計画 → 実装）**: 新機能/フェーズ/計画タスクは、まず `docs/project-status.md` を読み、**現在地の要約＋候補方針 2-3（各トレードオフ一言）を提示して一旦ユーザーに返し、方針の指示を待つ**。**status を読んだ＝着手許可ではない**（この時点で grill・詳細計画・コード編集に進まない）。方針が確定したら `/grill-with-docs` でドメインモデル・`CONTEXT.md`・`docs/adr` と突き合わせ、用語は CONTEXT.md・後戻りしにくい決定は ADR に落としてから計画→実装。純粋な status 質問・運用操作（merge/status 更新等）はこの限りでない。〔境界で同趣旨を注入するフックあり: PostToolUse `handback-after-status`（status 読了時）＋ UserPromptSubmit `suggest-grill-on-planning`（計画意図検出時）。自動メモリ `pause-after-status-before-planning`〕
 - **TypeScript は関数のみで書く。`class` を使わない。** ドメインロジックは純粋関数、I/O は境界へ。
 - **デプロイ基盤を先に通してからロジックを載せる**（「歩く骨格」: `main` push → 本番 `/health` 200 ＆ SPA 表示）。
 - **git: コンテナ内は `claude/*` ブランチへの commit まで、push/PR はホスト側リレーが自動代行**（GitHub App・systemd timer 60秒間隔。ADR-0003）。`claude/*` 外・force push はリレーが拒否、main は ruleset でも保護（PR + CI green のみ）。`git push` はコンテナで deny。リレー本体はリポ外 `~/.config/mazuoboeru-relay/`（サンドボックスから改変不能）、ログは `journalctl --user -u mazuoboeru-relay.service`。
