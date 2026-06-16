@@ -76,4 +76,4 @@
 | 中 | SRS 復習、ランキング、作者ページ、モデレーション管理画面、Cloudflare Access で `/admin` ゲート、Passkey 追加導線 |
 | 低 | コメント、編集履歴 (`quiz_revision`)、AI 出題補助、PWA/オフライン、`apps/cli` の npm 配信、ハード削除・GDPR エクスポート |
 
-段階分けは [roadmap.md](roadmap.md) を参照。
+段階分けは [project-status.md](project-status.md) §「ロードマップ（フェーズ計画）」を参照。

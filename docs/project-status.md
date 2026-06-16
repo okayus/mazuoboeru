@@ -3,7 +3,7 @@
 > **このファイルは「いまどこにいて、ここから何が要るか」を共有する“生きたステータス”。**
 > 新セッションは `CLAUDE.md` の次にこれを読む。古い手順書ではなく現況なので、
 > **鵜呑みにせず §「現況の確かめ方」で実機確認してから動く**こと（ドキュメントは遅れる、本番は嘘をつかない）。
-> - 長期のフェーズ計画 → [roadmap.md](roadmap.md)（ここでは重複させない）
+> - 長期のフェーズ計画 → このファイル末尾 §「ロードマップ（フェーズ計画）」（旧 `roadmap.md` を統合）
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
@@ -60,14 +60,50 @@
 ### B. Phase 1 スコープでまだ無い機能（縦切りに含めなかった分）
 
 - ~~通報チャネル~~ → ✅ **実装・merge・本番デプロイ済み（#32）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**本番 D1 へ `0002_report.sql` は Workers Builds が #32 デプロイ時に自動適用済み**（`report` テーブル実在を host `wrangler d1 execute --remote` で確認。migration は手で当てない＝§ハマりどころ「D1 マイグレーションは自動適用」）。残タスクなし。
-- ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（残）。
+- ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（**一般公開前で足りる**。当面は次項の allowlist で代替）。
+- **ドッグフーディング作成者ゲート（allowlist）** → ✅ **実装（未デプロイ／env 未投入なら現状維持）**。`ALLOWED_CREATORS` env（カンマ/空白区切りメール）で `POST /api/quizzes`・`POST /api/quizzes/:id/publish` を絞る `requireCreator` ミドルウェア（純粋関数 `worker/domain/creator-allowlist.ts` ＋ vitest 7件・境界は middleware）。**空/未設定＝ゲート OFF＝従来どおり誰でも作成可**（deploy しても誰もロックしない）／非空＝列挙メール以外は 403・メール無しは fail-closed。キーは **OAuth 検証済みメール（ADR-0001）＝別 GitHub アカウントでのなりすまし不可**。これは「自分だけで UX を磨く」期間の**暫定ゲート**で、投稿 per-user レート制限の代替ではない（一般公開時に外し、通報ルートの DB count パターンで per-user 制限へ移行）。**本番で効かせるには Worker Secret `ALLOWED_CREATORS` を投入**（`pnpm secrets:prod`＝`.prod-secrets` に自分のメール／dev は `.dev.vars`）。
 - ~~`apps/cli` の最小実装~~ → ✅ **merge・本番デプロイ・本番実証済み（#38・2026-06-15）**。`@mazuoboeru/cli`（`mzo`）: `create`（draft 作成・id を stdout）／`publish <id>`（明示・不可逆）の2コマンド。入力は `POST /api/quizzes` の body そのもの（薄いパイプ＝検証はサーバ zod 一手）。env `MAZUOBOERU_PAT`／`MAZUOBOERU_BASE_URL`（既定=本番）。出力契約: stdout=データ・stderr=診断・exit `0/1/2`。**node24 で `.ts` をビルド無しネイティブ実行**（host/sandbox/CI を node24 に統一＝[ADR-0005](adr/0005-node24-native-ts-execution.md)。CSRF は Bearer を exempt＝`security.ts` 確認済みなので PAT 経路は Origin 不要）。純粋関数（argv/リクエスト構築/応答→exit 写像）を vitest 26件・境界は fetch 注入。型・test・サンドボックス内 help/exit 検証済み。本番煙テスト: 実 PAT で `create`→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→ソフト削除まで実機確認。残タスクなし。
 
 ### C. その先（Phase 2 以降の入口）
 
-検索・タグ、学習ダッシュボード、追加設問形式（`boolean`→`short`→`cloze`）、Passkey、通報の Discord/メール通知、SRS（Phase 3）、モデレーション管理画面（Phase 4）。詳細と順序は [roadmap.md](roadmap.md)。
+検索・タグ、学習ダッシュボード、追加設問形式（`boolean`→`short`→`cloze`）、Passkey、通報の Discord/メール通知、SRS（Phase 3）、モデレーション管理画面（Phase 4）。詳細と順序は下記 §「ロードマップ（フェーズ計画）」。
 
 > **実スキーマ変更時は必ず** スキル `cloudflare-d1-drizzle-migration` を読む（constraint 変更/table rebuild は FK OFF のカスケード削除トラップ＋要バックアップ。列追加は安全）。
+
+---
+
+## ロードマップ（フェーズ計画）
+
+> 旧 `docs/roadmap.md` を統合（2026-06-16）。**near-term の残作業は §「ここから必要なもの」**、**確定済みの既定は [CLAUDE.md](../CLAUDE.md) §確定済み**、**後戻りしにくい決定の理由は [docs/adr/](adr/)** が正典。ここはフェーズの順序と長期の見取り図に徹する。方針: 「動くものを早く」→「共有プールが回る」→「定着（SRS）」→「安全・健全に保つ」。
+
+### Phase 0 — スキャフォールド ✅ 完了
+開発コンテナ（host 5373）／pnpm workspaces（`apps/web` に SPA＋Worker＋wrangler.jsonc 同梱）／歩く骨格を本番 `/health` 200 まで／Workers Builds キーレスデプロイ／D1 スキーマ＋マイグレーション。詳細 [dev-environment.md](dev-environment.md)・[ADR-0003](adr/0003-secrets-strategy.md)。
+
+### Phase 1 — MVP（共有が成立する最小形）✅ ほぼ完了
+ゴール: アカウント作成 → クイズ作成（`mcq_single`/`mcq_multi`）→ 明示公開（不可逆）→ 他人が挑戦 → サーバー採点。AI エージェントが PAT で量産。
+- ✅ 済み: GitHub OAuth（Google は可逆保留＝[ADR-0001](adr/0001-auth-via-oauth-and-pat.md)）／PAT 発行・Bearer middleware／作成 CRUD ＋解説／不可逆 publish ＋公開ゲート／公開タイムライン・挑戦／サーバー strict 採点／UGC sanitize（react-markdown + rehype-sanitize＝[ADR-0004](adr/0004-ugc-markdown-rendering.md)）／通報チャネル（#32）／認証ルートのレート制限（#28）／`apps/cli`（`mzo`・#38）／Playwright e2e（#39）。
+- ⏳ 残り: **投稿の per-user レート制限のみ**（§B。一般公開前で足りる）。当面の単一ユーザ運用は**作成者 allowlist ゲート**（`ALLOWED_CREATORS`・§B）で代替済み。
+
+### Phase 2 — 発見と振り返り
+- 検索・タグ・カテゴリ、人気/ランキング、作者ページ（**`tag`/`quiz_tags` 未実装**）。
+- 学習ダッシュボード（本人の正答率・履歴・ストリーク。既存 `attempt`/`attempt_answer` の読みだけ＝**新テーブル不要**）。
+- お気に入り（**`favorite` 未実装**）。
+- 追加設問形式 **`boolean` → `short` → `cloze`** の順（`short` で正規化方針＋`question.answer` 列が要る）。
+- Passkey 追加導線（**`credential` 未実装**、`@simplewebauthn/server`）。
+- 通報の Discord/メール通知（スキル `cloudflare-cron-to-discord`）。
+- CLI の npm 配信（`esbuild` バンドル → `npx @mazuoboeru/cli`）。
+
+### Phase 3 — 定着（SRS）
+間隔反復の復習キュー（**`review_state` 未実装**）、自己評価で間隔調整、「今日の復習」、タグ別習熟度。
+
+### Phase 4 — 健全な運営・拡張
+モデレーション管理画面（`/admin/*` を **Cloudflare Access** で IdP ゲート）／自動スパム検知・監査ログ／D1 週次バックアップ（スキル `cloudflare-d1-weekly-backup-via-pr`）／集計のキャッシュ・事前集計（`quiz_stats`）／ハード削除＋データエクスポート・アカウント削除（GDPR）／編集履歴 `quiz_revision`＋`attempt.quiz_title_snapshot` で履歴の自立性確保／コメント（モデレーション前提）・PWA。
+
+### 持ち越し（再開条件つき）
+- **短答採点の正規化**（大小・全半角・表記ゆれ・別解）— Phase 2 で `short` 追加時に詰める。
+- **custom domain** の購入・移行 — ローンチ後。redirect URI を workers.dev と custom で併存させ段階移行（subdomain なし URL は構造上不可＝custom domain が正解）。
+- **CLI の npm 配信** — Phase 2（`esbuild` → `npx`）。
+- **admin UI / 自動アクション**（N 件通報で自動 hidden 等）— Phase 4。
 
 ---
 

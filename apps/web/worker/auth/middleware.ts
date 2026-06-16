@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import type { User } from "../db/schema";
 import type { AuthMethod, Env } from "../types";
+import { isCreatorAllowed, parseCreatorAllowlist } from "../domain/creator-allowlist";
 import { validatePat } from "./pat";
 import { getSessionUser } from "./session";
 
@@ -76,6 +77,18 @@ export function requireScope(scope: string): MiddlewareHandler<Env> {
     await next();
   };
 }
+
+// Dogfooding gate: restrict quiz creation/publishing to ALLOWED_CREATORS (emails).
+// Empty/absent env => open (no-op), so it's safe to leave wired in permanently; flip
+// it on by setting the secret. Stacks AFTER requireAuth. This is the temporary single-
+// user gate, not the public-launch per-user write rate limit (docs/project-status.md).
+export const requireCreator: MiddlewareHandler<Env> = async (c, next) => {
+  const allowlist = parseCreatorAllowlist(c.env.ALLOWED_CREATORS);
+  if (allowlist.size > 0 && !isCreatorAllowed(allowlist, requireUser(c).email)) {
+    return c.json({ error: "not_allowed_creator" }, 403);
+  }
+  await next();
+};
 
 // Read the authenticated user after requireAuth. Throws if misused (no auth ran).
 export function requireUser(c: Context<Env>): User {

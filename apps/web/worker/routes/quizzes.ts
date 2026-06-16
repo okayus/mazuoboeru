@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { requireAuth, requireScope, requireUser } from "../auth/middleware";
+import {
+  requireAuth,
+  requireCreator,
+  requireScope,
+  requireUser,
+} from "../auth/middleware";
 import {
   createDraftQuiz,
   listQuizzesByAuthor,
@@ -81,7 +86,7 @@ function authorQuizJson(loaded: LoadedQuiz) {
 export const quizzesRouter = new Hono<Env>();
 
 // Create a draft. Works for both web (session) and AI/CLI (PAT with quiz:write).
-quizzesRouter.post("/", requireAuth, requireScope("quiz:write"), async (c) => {
+quizzesRouter.post("/", requireAuth, requireScope("quiz:write"), requireCreator, async (c) => {
   const user = requireUser(c);
   const body = (await c.req.json().catch(() => null)) as unknown;
   const parsed = contentSchema.safeParse(body);
@@ -144,7 +149,7 @@ quizzesRouter.patch("/:id", requireAuth, requireScope("quiz:write"), async (c) =
 });
 
 // The publish gate: irreversible draft -> published, server-enforced gradeability.
-quizzesRouter.post("/:id/publish", requireAuth, requireScope("quiz:write"), async (c) => {
+quizzesRouter.post("/:id/publish", requireAuth, requireScope("quiz:write"), requireCreator, async (c) => {
   const user = requireUser(c);
   const id = c.req.param("id");
   const loaded = await loadQuizWithContent(c.env, id);
