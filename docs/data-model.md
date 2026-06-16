@@ -109,8 +109,8 @@ user 1───* report          (通報)
 | position | integer | |
 
 ### tag / quiz_tags
-- tag: `id` / `name`（一意）/ `created_at`。
-- quiz_tags: `(quiz_id, tag_id)` PK。
+- tag: `id` / `name`（表示名）/ `name_key`（識別キー＝NFKC・trim・空白畳み・小文字。**一意**）/ `created_at`。"Docker"/"docker" は1タグに統合し表示は "Docker" を保つ（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)・`worker/domain/tag.ts`）。タグは**クイズ単位メタデータ**（軽微編集＝[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)で published でも編集可）。最大5/クイズ・1〜30字。
+- quiz_tags: `(quiz_id, tag_id)` PK。`quiz_id` は quiz 集合体としてカスケード（ソフト削除運用なので発火は Phase 4 のハード削除時のみ）、`tag_id` は NO ACTION。
 
 ### attempt（挑戦）／ attempt_answer（各回答）
 - attempt: `id` / `user_id` / `quiz_id` / `started_at` / `finished_at?` / `score` / `total`。**非公開**。
@@ -160,7 +160,7 @@ user 1───* report          (通報)
 - `quiz(status, deleted_at, created_at)` ── 公開タイムライン・新着（`status='published' AND deleted_at IS NULL` で絞る）。
 - `quiz(author_id)` ── 作者ページ。
 - `question(quiz_id, position)` / `choice(question_id, position)`。
-- `quiz_tags(tag_id)` / `quiz_tags(quiz_id)`。
+- `quiz_tags(tag_id)` ── タグ別の絞り込み（`quiz_id` は PK のプレフィックスが兼ねるので別索引は作らない）。
 - `attempt(user_id, quiz_id)` / `attempt(quiz_id)` ── 本人履歴・クイズ集計。
 - `review_state(user_id, due_at)` ── 今日の復習キュー。
 - `session(expires_at)` ── 期限切れ掃除。

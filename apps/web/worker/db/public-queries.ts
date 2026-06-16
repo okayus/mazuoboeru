@@ -3,6 +3,7 @@ import type { Bindings } from "../types";
 import { db } from "./client";
 import { type LoadedQuiz, loadQuizWithContent } from "./quiz-queries";
 import { question, quiz, user } from "./schema";
+import { quizIdsWithTagKey, tagsForQuizzes } from "./tag-queries";
 
 export type TimelineItem = {
   id: string;
@@ -11,15 +12,26 @@ export type TimelineItem = {
   authorDisplayName: string;
   publishedAt: number | null;
   questionCount: number;
+  tags: string[];
 };
 
 // Public timeline: published, non-deleted quizzes, newest first. The canonical
 // public filter is always status='published' AND deleted_at IS NULL (ADR-0002).
+// `tagKey` (normalized) restricts to quizzes carrying that tag.
 export async function listPublishedQuizzes(
   env: Bindings,
-  limit = 50,
+  opts: { limit?: number; tagKey?: string } = {},
 ): Promise<TimelineItem[]> {
   const d = db(env);
+  const limit = opts.limit ?? 50;
+
+  // Resolve the tag filter to a quiz-id set up front; no matches → empty timeline.
+  let taggedIds: string[] | null = null;
+  if (opts.tagKey) {
+    taggedIds = await quizIdsWithTagKey(env, opts.tagKey);
+    if (taggedIds.length === 0) return [];
+  }
+
   const rows = await d
     .select({
       id: quiz.id,
@@ -30,7 +42,13 @@ export async function listPublishedQuizzes(
     })
     .from(quiz)
     .innerJoin(user, eq(quiz.authorId, user.id))
-    .where(and(eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .where(
+      and(
+        eq(quiz.status, "published"),
+        isNull(quiz.deletedAt),
+        ...(taggedIds ? [inArray(quiz.id, taggedIds)] : []),
+      ),
+    )
     .orderBy(desc(quiz.publishedAt))
     .limit(limit);
 
@@ -43,8 +61,13 @@ export async function listPublishedQuizzes(
         .groupBy(question.quizId)
     : [];
   const countByQuiz = new Map(counts.map((r) => [r.quizId, Number(r.n)]));
+  const tagsByQuiz = await tagsForQuizzes(env, ids);
 
-  return rows.map((r) => ({ ...r, questionCount: countByQuiz.get(r.id) ?? 0 }));
+  return rows.map((r) => ({
+    ...r,
+    questionCount: countByQuiz.get(r.id) ?? 0,
+    tags: tagsByQuiz.get(r.id) ?? [],
+  }));
 }
 
 export type PublicQuiz = { loaded: LoadedQuiz; authorDisplayName: string };

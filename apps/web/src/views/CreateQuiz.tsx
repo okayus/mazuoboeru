@@ -32,6 +32,7 @@ const emptyQuestion = (): QuestionDraft => ({
 export function CreateQuiz() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [tags, setTags] = useState("");
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
   const [error, setError] = useState<string | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
@@ -78,6 +79,8 @@ export function CreateQuiz() {
       }),
     };
     if (description.trim()) input.description = description.trim();
+    const tagList = tags.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+    if (tagList.length) input.tags = tagList;
     return input;
   };
 
@@ -128,6 +131,10 @@ export function CreateQuiz() {
       <label className="field">
         <span>説明（Markdown 可）</span>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+      </label>
+      <label className="field">
+        <span>タグ（カンマ/スペース区切り・最大5・任意）</span>
+        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="例: Docker, ネットワーク" />
       </label>
 
       {questions.map((q, qi) => (

@@ -11,6 +11,7 @@ export type TimelineItem = {
   authorDisplayName: string;
   publishedAt: number | null;
   questionCount: number;
+  tags: string[];
 };
 
 export type PublicChoice = { id: string; text: string; position: number };
@@ -28,6 +29,7 @@ export type PublicQuiz = {
   description: string | null;
   authorDisplayName: string;
   publishedAt: number | null;
+  tags: string[];
   questions: PublicQuestion[];
 };
 
@@ -58,6 +60,7 @@ export type AuthorQuizSummary = {
   status: "draft" | "published" | "hidden";
   createdAt: number;
   publishedAt: number | null;
+  tags: string[];
 };
 
 export type ChoiceInput = { text: string; isCorrect: boolean };
@@ -71,6 +74,7 @@ export type QuizInput = {
   title: string;
   description?: string;
   questions: QuestionInput[];
+  tags?: string[];
 };
 
 export type TokenSummary = {
@@ -124,7 +128,10 @@ export const api = {
   me: () => request<{ user: Me | null }>("/auth/me"),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
 
-  timeline: () => request<{ quizzes: TimelineItem[] }>("/public/quizzes"),
+  timeline: (tag?: string) =>
+    request<{ quizzes: TimelineItem[] }>(
+      `/public/quizzes${tag ? `?tag=${encodeURIComponent(tag)}` : ""}`,
+    ),
   publicQuiz: (id: string) => request<{ quiz: PublicQuiz }>(`/public/quizzes/${id}`),
 
   myQuizzes: () => request<{ quizzes: AuthorQuizSummary[] }>("/quizzes/mine"),
@@ -134,6 +141,11 @@ export const api = {
     request<{ ok: true; status: string }>(`/quizzes/${id}/publish`, { method: "POST" }),
   deleteQuiz: (id: string) =>
     request<{ ok: true }>(`/quizzes/${id}`, { method: "DELETE" }),
+  setQuizTags: (id: string, tags: string[]) =>
+    request<{ ok: true; tags: string[] }>(`/quizzes/${id}/tags`, {
+      method: "PUT",
+      body: JSON.stringify({ tags }),
+    }),
 
   startAttempt: (quizId: string) =>
     request<AttemptState>("/attempts", { method: "POST", body: JSON.stringify({ quizId }) }),

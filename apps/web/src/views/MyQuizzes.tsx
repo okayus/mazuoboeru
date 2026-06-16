@@ -80,10 +80,53 @@ export function MyQuizzes() {
                   削除
                 </button>
               </div>
+              <TagEditor quizId={q.id} initial={q.tags} onSaved={() => mutate()} />
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Inline per-quiz tag editor. Tags are quiz-level metadata, editable on any status
+// (ADR-0002), so this is also how existing/published quizzes get tagged.
+function TagEditor({
+  quizId,
+  initial,
+  onSaved,
+}: {
+  quizId: string;
+  initial: string[];
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState(initial.join(", "));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const list = value.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      const { tags } = await api.setQuizTags(quizId, list);
+      setValue(tags.join(", "));
+      onSaved();
+    } catch {
+      setErr("タグの保存に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="field tag-editor">
+      <span>タグ（カンマ/スペース区切り・最大5）</span>
+      <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="例: Docker, ネットワーク" />
+      <button className="link" onClick={save} disabled={busy}>
+        {busy ? "保存中…" : "タグを保存"}
+      </button>
+      {err ? <p className="error">{err}</p> : null}
     </div>
   );
 }
