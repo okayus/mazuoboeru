@@ -7,7 +7,7 @@
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
-> **最終更新: 2026-06-15**（更新したら日付と §「いま動いているもの」を直す）
+> **最終更新: 2026-06-16**（更新したら日付と §「いま動いているもの」を直す）
 
 ---
 
@@ -17,12 +17,12 @@
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。**node は host/sandbox/CI とも node24**（ADR-0005。`apps/cli` の `.ts` はビルド無しネイティブ実行）。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
-- **直近の前進**（2026-06-15）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を merge・本番デプロイ・本番実証**（#38。`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。本番で実 PAT による create→作者 API で内容一致→非公開確認→ソフト削除まで実機確認）。**A4 e2e は完了・本番反映済み**（**PR #39 merge＝main `012cfaf`・Workers Builds デプロイ success**。コンテナ内 `pnpm e2e` 6/6 緑。本番コードに認証バイパスを足さず session seam＋ビルド成果物を `wrangler dev` で駆動。`.docker/Dockerfile` の `INSTALL_PLAYWRIGHT=true` で Chromium をビルド時に焼き込み＝コンテナ完結／runtime egress ゼロ。**この e2e が挑戦ビューの本番バグ＝React #310 hooks 違反を検出・修正**＝本番バンドルも修正後 `index-91zgNzP4.js` に更新済み）。**残りの Phase 1 は B2 投稿 per-user 制限のみ**。
+- **直近の前進**（2026-06-15〜16）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を merge・本番デプロイ・本番実証**（#38。`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。本番で実 PAT による create→作者 API で内容一致→非公開確認→ソフト削除まで実機確認）。**A4 e2e は完了・本番反映済み**（**PR #39 merge＝main `012cfaf`・Workers Builds デプロイ success**。コンテナ内 `pnpm e2e` 6/6 緑。本番コードに認証バイパスを足さず session seam＋ビルド成果物を `wrangler dev` で駆動。`.docker/Dockerfile` の `INSTALL_PLAYWRIGHT=true` で Chromium をビルド時に焼き込み＝コンテナ完結／runtime egress ゼロ。**この e2e が挑戦ビューの本番バグ＝React #310 hooks 違反を検出・修正**＝本番バンドルも修正後 `index-91zgNzP4.js` に更新済み）。**ドッグフーディング作成者ゲート（allowlist）を実装・merge・本番デプロイ・本番でゲート ON 実証**（#41＝main `394b06a`。`ALLOWED_CREATORS` secret 投入済み＝列挙メールのアカウントのみ作成/公開可。作者のブラウザ作成成功を確認＝自己ロックアウト無し）。**残りの Phase 1 は投稿 per-user レート制限のみ**（一般公開前で足り、当面は allowlist で代替）。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
 
-## いま本番で動いているもの（2026-06-15 実機確認）
+## いま本番で動いているもの（2026-06-16 実機確認）
 
 | 項目 | 状態 | 確認したこと |
 | --- | --- | --- |
@@ -36,6 +36,7 @@
 | **レート制限 / observability（B2）** | ✅ **デプロイ済み** | #28 merge＋Workers Builds success。`AUTH_RATE_LIMITER`(30/60s)・observability 100% を OAuth begin/callback に。CLI 検証は v3 偽陰性／挙動バーストは不確定＝**稼働確定は Dashboard**（§ハマりどころ） |
 | **通報チャネル（B1）** | ✅ **稼働（migration も自動適用済み）** | #32 merge＋Workers Builds success。`POST /api/reports` は Origin 無し→403 / 未ログイン→401（結線確認）。**本番 D1 に `report` テーブル実在を確認**（host `wrangler d1 execute --remote "SELECT name FROM sqlite_master ... name='report'"` → report）。**migration は Workers Builds が自動適用**（deploy command = `d1 migrations apply --remote && wrangler deploy`）＝人手不要 |
 | **PAT 経由のクイズ作成（量産導線・B3）** | ✅ **本番実証** | `mzo create` が本番 D1 に draft 生成→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→soft-delete 動作（#38・実 PAT）。CSRF は Bearer exempt で PAT は Origin 不要 |
+| **作成者ゲート（allowlist・ドッグフーディング）** | ✅ **稼働（ゲート ON）** | #41 merge＋Workers Builds success（main `394b06a`）。`ALLOWED_CREATORS` secret 投入済み→**作者がブラウザでクイズ作成成功**（許可側は通る）。非許可は `403 not_allowed_creator`（観測には第2アカウント要）。`wrangler secret delete ALLOWED_CREATORS` で開放に戻せる。一般公開時は外して投稿 per-user レート制限へ |
 
 > つまり **データ層・公開読み取り・採点・セキュリティ境界・ログイン入口まで本番で生きている**。Phase 1 縦切りは人間がブラウザで端から端まで使える状態。
 
@@ -61,7 +62,7 @@
 
 - ~~通報チャネル~~ → ✅ **実装・merge・本番デプロイ済み（#32）**。`report` テーブル（target_type=quiz/question/user・reason_category 5種・自由記述≤500字・status open/actioned/dismissed）＋ `POST /api/reports`（**session 限定＝PAT 不可**・対象存在検証・同一(reporter,target)は冪等・**レート制限 10件/rolling 24h/ユーザ**は DB count で実装＝unsafe ratelimit binding は 10/60s 粒度しか無く日次に使えないため）＋ 挑戦画面のクイズ通報ボタン。ローカル D1 で一周検証済み（201 / 重複 200 / 自己通報 400 / 不在 404 / 不正 400 / 超過 429）。triage は当面 `wrangler d1 execute` で SELECT（admin UI は Phase 4）。**本番 D1 へ `0002_report.sql` は Workers Builds が #32 デプロイ時に自動適用済み**（`report` テーブル実在を host `wrangler d1 execute --remote` で確認。migration は手で当てない＝§ハマりどころ「D1 マイグレーションは自動適用」）。残タスクなし。
 - ~~認証ルートのレート制限（B2）~~ → ✅ **完了・デプロイ済み**（#28 merge＋Workers Builds success）。observability(100%) ＋ unsafe ratelimit binding `AUTH_RATE_LIMITER`(30/60s)・fail-open を OAuth begin/callback に（wrangler 3.x は top-level `ratelimits` 非対応＝unsafe 形式）。スキル `cloudflare-workers-bot-scan-defense`。**稼働の確定は Dashboard**（CLI は v3 偽陰性＝§ハマりどころ）。投稿の per-user 制限は別途（**一般公開前で足りる**。当面は次項の allowlist で代替）。
-- **ドッグフーディング作成者ゲート（allowlist）** → ✅ **実装（未デプロイ／env 未投入なら現状維持）**。`ALLOWED_CREATORS` env（カンマ/空白区切りメール）で `POST /api/quizzes`・`POST /api/quizzes/:id/publish` を絞る `requireCreator` ミドルウェア（純粋関数 `worker/domain/creator-allowlist.ts` ＋ vitest 7件・境界は middleware）。**空/未設定＝ゲート OFF＝従来どおり誰でも作成可**（deploy しても誰もロックしない）／非空＝列挙メール以外は 403・メール無しは fail-closed。キーは **OAuth 検証済みメール（ADR-0001）＝別 GitHub アカウントでのなりすまし不可**。これは「自分だけで UX を磨く」期間の**暫定ゲート**で、投稿 per-user レート制限の代替ではない（一般公開時に外し、通報ルートの DB count パターンで per-user 制限へ移行）。**本番で効かせるには Worker Secret `ALLOWED_CREATORS` を投入**（`pnpm secrets:prod`＝`.prod-secrets` に自分のメール／dev は `.dev.vars`）。
+- **ドッグフーディング作成者ゲート（allowlist）** → ✅ **merge(#41)・本番デプロイ・ゲート ON 実証（2026-06-16）**。`ALLOWED_CREATORS` env（カンマ/空白区切りメール）で `POST /api/quizzes`・`POST /api/quizzes/:id/publish` を絞る `requireCreator` ミドルウェア（純粋関数 `worker/domain/creator-allowlist.ts` ＋ vitest 7件・境界は middleware）。**空/未設定＝ゲート OFF＝従来どおり誰でも作成可**（deploy しても誰もロックしない）／非空＝列挙メール以外は 403・メール無しは fail-closed。キーは **OAuth 検証済みメール（ADR-0001）＝別 GitHub アカウントでのなりすまし不可**。これは「自分だけで UX を磨く」期間の**暫定ゲート**で、投稿 per-user レート制限の代替ではない（一般公開時に外し、通報ルートの DB count パターンで per-user 制限へ移行）。**`ALLOWED_CREATORS` secret は本番投入済み（2026-06-16）＝ゲート ON**。作者のブラウザ作成成功で自己ロックアウト無しを確認。開放に戻すなら host で `wrangler secret delete ALLOWED_CREATORS`（dev は `.dev.vars`）。
 - ~~`apps/cli` の最小実装~~ → ✅ **merge・本番デプロイ・本番実証済み（#38・2026-06-15）**。`@mazuoboeru/cli`（`mzo`）: `create`（draft 作成・id を stdout）／`publish <id>`（明示・不可逆）の2コマンド。入力は `POST /api/quizzes` の body そのもの（薄いパイプ＝検証はサーバ zod 一手）。env `MAZUOBOERU_PAT`／`MAZUOBOERU_BASE_URL`（既定=本番）。出力契約: stdout=データ・stderr=診断・exit `0/1/2`。**node24 で `.ts` をビルド無しネイティブ実行**（host/sandbox/CI を node24 に統一＝[ADR-0005](adr/0005-node24-native-ts-execution.md)。CSRF は Bearer を exempt＝`security.ts` 確認済みなので PAT 経路は Origin 不要）。純粋関数（argv/リクエスト構築/応答→exit 写像）を vitest 26件・境界は fetch 注入。型・test・サンドボックス内 help/exit 検証済み。本番煙テスト: 実 PAT で `create`→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→ソフト削除まで実機確認。残タスクなし。
 
 ### C. その先（Phase 2 以降の入口）
@@ -82,7 +83,7 @@
 ### Phase 1 — MVP（共有が成立する最小形）✅ ほぼ完了
 ゴール: アカウント作成 → クイズ作成（`mcq_single`/`mcq_multi`）→ 明示公開（不可逆）→ 他人が挑戦 → サーバー採点。AI エージェントが PAT で量産。
 - ✅ 済み: GitHub OAuth（Google は可逆保留＝[ADR-0001](adr/0001-auth-via-oauth-and-pat.md)）／PAT 発行・Bearer middleware／作成 CRUD ＋解説／不可逆 publish ＋公開ゲート／公開タイムライン・挑戦／サーバー strict 採点／UGC sanitize（react-markdown + rehype-sanitize＝[ADR-0004](adr/0004-ugc-markdown-rendering.md)）／通報チャネル（#32）／認証ルートのレート制限（#28）／`apps/cli`（`mzo`・#38）／Playwright e2e（#39）。
-- ⏳ 残り: **投稿の per-user レート制限のみ**（§B。一般公開前で足りる）。当面の単一ユーザ運用は**作成者 allowlist ゲート**（`ALLOWED_CREATORS`・§B）で代替済み。
+- ⏳ 残り: **投稿の per-user レート制限のみ**（§B。一般公開前で足りる）。当面の単一ユーザ運用は**作成者 allowlist ゲート**（`ALLOWED_CREATORS`・§B）で代替（#41・本番 ON 済み）。
 
 ### Phase 2 — 発見と振り返り
 - 検索・タグ・カテゴリ、人気/ランキング、作者ページ（**`tag`/`quiz_tags` 未実装**）。
