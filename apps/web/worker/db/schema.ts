@@ -286,6 +286,26 @@ export const tagEdge = sqliteTable(
   ],
 );
 
+// A user's private collection of published quizzes to revisit ("my hot" — CONTEXT.md
+// Favorite). user_id CASCADEs (user-owned); quiz_id is NO ACTION (cross-aggregate, the
+// my-hot list filters published). created_at orders the list (most recent first).
+export const favorite = sqliteTable(
+  "favorite",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quiz.id),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.quizId] }),
+    index("idx_favorite_user").on(t.userId, t.createdAt),
+  ],
+);
+
 // Inferred row types for use across the worker (query results / inserts).
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -299,3 +319,4 @@ export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
 export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
 export type TagEdge = typeof tagEdge.$inferSelect;
+export type Favorite = typeof favorite.$inferSelect;

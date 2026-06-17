@@ -9,7 +9,8 @@ export type Route =
   | { name: "mine" }
   | { name: "challenge"; quizId: string }
   | { name: "settings" }
-  | { name: "dashboard" };
+  | { name: "dashboard" }
+  | { name: "favorites" };
 
 function parse(hash: string): Route {
   const path = hash.replace(/^#/, "") || "/";
@@ -18,6 +19,7 @@ function parse(hash: string): Route {
   if (path === "/mine") return { name: "mine" };
   if (path === "/settings") return { name: "settings" };
   if (path === "/dashboard") return { name: "dashboard" };
+  if (path === "/favorites") return { name: "favorites" };
   const m = path.match(/^\/quiz\/(.+)$/);
   if (m && m[1]) return { name: "challenge", quizId: m[1] };
   return { name: "timeline" };

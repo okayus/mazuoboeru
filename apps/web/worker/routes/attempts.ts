@@ -9,6 +9,7 @@ import {
   listAttemptAnswers,
   recordAnswer,
 } from "../db/attempt-queries";
+import { isFavorited } from "../db/favorite-queries";
 import { loadPublishedQuiz, type PublicQuiz } from "../db/public-queries";
 import type { Attempt } from "../db/schema";
 import { gradeSelection } from "../domain/grading";
@@ -85,10 +86,12 @@ attemptsRouter.post("/", async (c) => {
   const existing = await findUnfinishedAttempt(c.env, user.id, parsed.data.quizId);
   const att = existing ?? (await createAttempt(c.env, user.id, parsed.data.quizId));
   const answers = await buildAnswerDetails(c.env, att.id, found);
+  const favorited = await isFavorited(c.env, user.id, parsed.data.quizId);
   return c.json({
     attempt: attemptJson(att),
     quiz: publicQuizJson(found.loaded, found.authorDisplayName),
     answers,
+    favorited,
   });
 });
 
@@ -100,10 +103,12 @@ attemptsRouter.get("/:attemptId", async (c) => {
   const found = await loadPublishedQuiz(c.env, att.quizId);
   if (!found) return c.json({ error: "quiz_unavailable" }, 409);
   const answers = await buildAnswerDetails(c.env, att.id, found);
+  const favorited = await isFavorited(c.env, user.id, att.quizId);
   return c.json({
     attempt: attemptJson(att),
     quiz: publicQuizJson(found.loaded, found.authorDisplayName),
     answers,
+    favorited,
   });
 });
 

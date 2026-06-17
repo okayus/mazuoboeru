@@ -6,6 +6,7 @@ import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
 import { attemptsRouter } from "./routes/attempts";
 import { dashboardRouter } from "./routes/dashboard";
+import { favoritesRouter } from "./routes/favorites";
 import { publicRouter } from "./routes/public";
 import { quizzesRouter } from "./routes/quizzes";
 import { reportsRouter } from "./routes/reports";
@@ -58,6 +59,9 @@ api.route("/reports", reportsRouter);
 
 // Private learning dashboard (session-only): accuracy / streak / per-tag (ADR-0006).
 api.route("/dashboard", dashboardRouter);
+
+// Favorites / "my hot" (session-only, private).
+api.route("/favorites", favoritesRouter);
 
 app.route("/api", api);
 

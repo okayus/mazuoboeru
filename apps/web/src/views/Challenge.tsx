@@ -20,12 +20,14 @@ export function Challenge({ quizId }: { quizId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
+  const [favorited, setFavorited] = useState(false);
 
   useEffect(() => {
     api
       .startAttempt(quizId)
       .then((s) => {
         setState(s);
+        setFavorited(s.favorited);
         const initial: Record<string, Feedback> = {};
         for (const a of s.answers) {
           initial[a.questionId] = {
@@ -65,6 +67,17 @@ export function Challenge({ quizId }: { quizId: string }) {
   const total = state.quiz.questions.length;
   const score = Object.values(feedback).filter((f) => f.isCorrect).length;
 
+  const toggleFavorite = async () => {
+    try {
+      const r = favorited
+        ? await api.removeFavorite(state.quiz.id)
+        : await api.addFavorite(state.quiz.id);
+      setFavorited(r.favorited);
+    } catch {
+      // non-fatal; leave the toggle as-is
+    }
+  };
+
   return (
     <div>
       <h2>{state.quiz.title}</h2>
@@ -72,6 +85,9 @@ export function Challenge({ quizId }: { quizId: string }) {
       {state.quiz.description ? <QuizMarkdown>{state.quiz.description}</QuizMarkdown> : null}
 
       <div className="quiz-actions">
+        <button className="link" onClick={toggleFavorite}>
+          {favorited ? "★ my hot 登録済み" : "☆ my hot に登録"}
+        </button>
         <ReportButton targetType="quiz" targetId={state.quiz.id} label="このクイズを通報" />
       </div>
 

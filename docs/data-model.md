@@ -119,12 +119,15 @@ user 1───* report          (通報)
 - attempt_answer: `id` / `attempt_id` / `question_id` / `response`(JSON) / `is_correct` / `answered_at`。採点はサーバー側で確定。
 - **invariant**: `attempt_answer.is_correct` は **書き込み後に変更しない**。クイズ編集（重大変更を含む）でも触らない（履歴の改変は不正と見なす、[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）。
 
-### favorite（お気に入り）
+### favorite（お気に入り / "my hot"）
 | カラム | 型 | 備考 |
 | --- | --- | --- |
-| user_id | text | FK |
-| quiz_id | text | FK |
+| user_id | text | FK → user（CASCADE・本人所有） |
+| quiz_id | text | FK → quiz（NO ACTION・一覧は published で絞る） |
+| created_at | integer | epoch ms。一覧の並び（新しい順）に使う |
 |  |  | PK = (user_id, quiz_id) |
+
+- 本人だけの私的コレクション（[[CONTEXT.md]] Favorite）。挑戦画面のトグルで登録/解除。一覧（"my hot"）は `status='published' AND deleted_at IS NULL` で絞るので、非公開化された favorite は自然に落ちる。
 
 ### review_state（SRS・設問ごと・本人のみ）
 | カラム | 型 | 備考 |
