@@ -7,7 +7,7 @@
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
-> **最終更新: 2026-06-16**（更新したら日付と §「いま動いているもの」を直す）
+> **最終更新: 2026-06-17**（更新したら日付と §「いま動いているもの」を直す）
 
 ---
 
@@ -16,6 +16,7 @@
 - **何**: 学んだことをクイズ化して反復で覚える **公開 SaaS**。マルチユーザーで、**クイズは必ず公開**され誰でも他人のクイズに挑戦できる。中心課題は UGC の安全表示（XSS サニタイズ）・モデレーション・サーバー側採点（カンニング防止）。
 - **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス）、push/PR/merge はホスト側リレー。**node は host/sandbox/CI とも node24**（ADR-0005。`apps/cli` の `.ts` はビルド無しネイティブ実行）。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
+- **Phase 2「発見と振り返り」実装・本番反映済み（2026-06-17・実機確認）**: タグ＋上位下位タクソノミ（広いタグ検索で下位も一致・ドリルチップ）／学習ダッシュボード（全体・実効タグ別正答率・ストリーク）／Favorite「my hot」／挑戦フロー再設計（1画面1問・設問別の本人正答率）。PR #44–#48・各 Workers Builds success（migration 0003–0005 自動適用を確認）。設計は [ADR-0006](adr/0006-dashboard-aggregation-semantics.md)/[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)。残: 人気/ランキング・作者ページ・追加設問形式・Passkey・通報の Discord 通知・CLI npm 配信。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
 - **直近の前進**（2026-06-15〜16）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を merge・本番デプロイ・本番実証**（#38。`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。本番で実 PAT による create→作者 API で内容一致→非公開確認→ソフト削除まで実機確認）。**A4 e2e は完了・本番反映済み**（**PR #39 merge＝main `012cfaf`・Workers Builds デプロイ success**。コンテナ内 `pnpm e2e` 6/6 緑。本番コードに認証バイパスを足さず session seam＋ビルド成果物を `wrangler dev` で駆動。`.docker/Dockerfile` の `INSTALL_PLAYWRIGHT=true` で Chromium をビルド時に焼き込み＝コンテナ完結／runtime egress ゼロ。**この e2e が挑戦ビューの本番バグ＝React #310 hooks 違反を検出・修正**＝本番バンドルも修正後 `index-91zgNzP4.js` に更新済み）。**ドッグフーディング作成者ゲート（allowlist）を実装・merge・本番デプロイ・本番でゲート ON 実証**（#41＝main `394b06a`。`ALLOWED_CREATORS` secret 投入済み＝列挙メールのアカウントのみ作成/公開可。作者のブラウザ作成成功を確認＝自己ロックアウト無し）。**残りの Phase 1 は投稿 per-user レート制限のみ**（一般公開前で足り、当面は allowlist で代替）。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
@@ -37,8 +38,12 @@
 | **通報チャネル（B1）** | ✅ **稼働（migration も自動適用済み）** | #32 merge＋Workers Builds success。`POST /api/reports` は Origin 無し→403 / 未ログイン→401（結線確認）。**本番 D1 に `report` テーブル実在を確認**（host `wrangler d1 execute --remote "SELECT name FROM sqlite_master ... name='report'"` → report）。**migration は Workers Builds が自動適用**（deploy command = `d1 migrations apply --remote && wrangler deploy`）＝人手不要 |
 | **PAT 経由のクイズ作成（量産導線・B3）** | ✅ **本番実証** | `mzo create` が本番 D1 に draft 生成→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→soft-delete 動作（#38・実 PAT）。CSRF は Bearer exempt で PAT は Origin 不要 |
 | **作成者ゲート（allowlist・ドッグフーディング）** | ✅ **稼働（ゲート ON）** | #41 merge＋Workers Builds success（main `394b06a`）。`ALLOWED_CREATORS` secret 投入済み→**作者がブラウザでクイズ作成成功**（許可側は通る）。非許可は `403 not_allowed_creator`（観測には第2アカウント要）。`wrangler secret delete ALLOWED_CREATORS` で開放に戻せる。一般公開時は外して投稿 per-user レート制限へ |
+| **タグ＋タクソノミ（#44/#45・Phase 2）** | ✅ **稼働** | 公開クイズに `tags`、`?tag=` で**上位タグ検索＝下位閉包で一致**＋related ドリルチップ。`tag_edge`（上位下位 DAG）は運用者 curate（DB/CLI）。Workers Builds success＝0003/0004 適用済み（実効タグは derive＝[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)） |
+| **学習ダッシュボード（#46・Phase 2）** | ✅ **稼働** | `GET /api/dashboard`（session 限定・未認証 **401** 実機確認）。全体／実効タグ別正答率＋ストリーク。私的・per-answer・活動量（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)） |
+| **Favorite / my hot（#47・Phase 2）** | ✅ **稼働** | `GET /api/favorites` **401**・`POST` は Origin 無し **403**（実機確認）。Workers Builds success＝0005 favorite 適用済み |
+| **挑戦フロー再設計（#48・Phase 2）** | ✅ **稼働** | 1画面1問＋設問別の本人正答率（私的）。**e2e 6/6 緑**で再設計 golden-path をコンテナ内 Chromium 実機通過 |
 
-> つまり **データ層・公開読み取り・採点・セキュリティ境界・ログイン入口まで本番で生きている**。Phase 1 縦切りは人間がブラウザで端から端まで使える状態。
+> つまり **データ層・公開読み取り・採点・セキュリティ境界・ログイン入口まで本番で生きている**。Phase 1 縦切りは人間がブラウザで端から端まで使える状態。**Phase 2（発見と振り返り）の主要機能も本番で稼働**（タグ検索・ダッシュボード・my hot・1画面1問の挑戦）。
 
 ### main にマージ済みの実装（Phase 1 縦切り）
 9 テーブル（user / oauth_account / session / api_token / quiz / question / choice / attempt / attempt_answer）＋ `drizzle/0001_phase1_slice.sql`（CHECK/FK/索引）。セッション（30 日スライディング・sha256 保存・host-only Cookie）／OAuth（arctic、検証済みメール限定 auto-link）／CSRF(Origin)＋セキュリティヘッダ／PAT（`mzo_pat_`・既定無期限・session 限定発行）／クイズ author CRUD＋公開ゲート（採点可能性をサーバ強制）／公開タイムライン＋挑戦ビュー／strict 採点（純粋関数、vitest 15 件）／react-markdown + rehype-sanitize の SPA（バンドル分割・SWR・memo 済み）。
@@ -86,9 +91,9 @@
 - ⏳ 残り: **投稿の per-user レート制限のみ**（§B。一般公開前で足りる）。当面の単一ユーザ運用は**作成者 allowlist ゲート**（`ALLOWED_CREATORS`・§B）で代替（#41・本番 ON 済み）。
 
 ### Phase 2 — 発見と振り返り
-- 検索・タグ・カテゴリ、人気/ランキング、作者ページ（**`tag`/`quiz_tags` 未実装**）。
-- 学習ダッシュボード（本人の正答率・履歴・ストリーク。既存 `attempt`/`attempt_answer` の読みだけ＝**新テーブル不要**）。
-- お気に入り（**`favorite` 未実装**）。
+- ✅ **タグ＋上位下位タクソノミ（#44/#45・本番）**: タグ付け・タグ絞り込み（広いタグで下位も一致）・ドリルチップ。`tag`/`quiz_tags`/`tag_edge` 実装。**残: 人気/ランキング・作者ページ**。
+- ✅ **学習ダッシュボード（#46・本番）**: 全体・実効タグ別正答率・ストリーク（私的・per-answer＝[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)）。
+- ✅ **お気に入り／挑戦フロー再設計（#47/#48・本番）**: Favorite「my hot」＋ 1画面1問・設問別の本人正答率。
 - 追加設問形式 **`boolean` → `short` → `cloze`** の順（`short` で正規化方針＋`question.answer` 列が要る）。
 - Passkey 追加導線（**`credential` 未実装**、`@simplewebauthn/server`）。
 - 通報の Discord/メール通知（スキル `cloudflare-cron-to-discord`）。
