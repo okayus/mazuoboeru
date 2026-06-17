@@ -108,9 +108,11 @@ user 1───* report          (通報)
 | is_correct | integer (bool) | **クライアントに挑戦前は渡さない** |
 | position | integer | |
 
-### tag / quiz_tags
-- tag: `id` / `name`（表示名）/ `name_key`（識別キー＝NFKC・trim・空白畳み・小文字。**一意**）/ `created_at`。"Docker"/"docker" は1タグに統合し表示は "Docker" を保つ（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)・`worker/domain/tag.ts`）。タグは**クイズ単位メタデータ**（軽微編集＝[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)で published でも編集可）。最大5/クイズ・1〜30字。
-- quiz_tags: `(quiz_id, tag_id)` PK。`quiz_id` は quiz 集合体としてカスケード（ソフト削除運用なので発火は Phase 4 のハード削除時のみ）、`tag_id` は NO ACTION。
+### tag / quiz_tags / tag_edge
+- tag: `id` / `name`（表示名）/ `name_key`（識別キー＝NFKC・trim・空白畳み・小文字。**一意**）/ `created_at`。"Docker"/"docker" は1タグに統合し表示は "Docker" を保つ（`worker/domain/tag.ts`）。タグは**クイズ単位メタデータ**（軽微編集＝[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)で published でも編集可）。**最大30/クイズ**・1〜30字。
+- quiz_tags: `(quiz_id, tag_id)` PK＝**authored タグのみ**（作者が付けた分）。`quiz_id` は quiz 集合体としてカスケード（ソフト削除運用なので発火は Phase 4 のハード削除時のみ）、`tag_id` は NO ACTION。
+- tag_edge: `(narrower_id, broader_id)` PK＝タグの**上位下位（subsumption）DAG**（[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)。多親可・両 id は tag へ CASCADE・索引 `tag_edge(broader_id)`）。**実効タグ**（authored＋上位閉包）は読み時に純粋関数 `worker/domain/tag-graph.ts` で導出＝保存しない。絞り込み「広いタグ」は下位閉包で一致。
+  - **curate（運用者のみ・MVP は DB/CLI）**: 公開 write API も admin UI も無い。投入は `wrangler d1 execute mazuoboeru-db --remote --command "INSERT INTO tag_edge (narrower_id, broader_id) VALUES ('<下位 tag.id>','<上位 tag.id>')"`（両タグは既存前提＝先に `tag` を確認/作成）。**投入前に巡回チェック**（`wouldCreateCycle`）を通し DAG を維持する。read（グラフ取得）は将来の可視化用に公開予定。
 
 ### attempt（挑戦）／ attempt_answer（各回答）
 - attempt: `id` / `user_id` / `quiz_id` / `started_at` / `finished_at?` / `score` / `total`。**非公開**。

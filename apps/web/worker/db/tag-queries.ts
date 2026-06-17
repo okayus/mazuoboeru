@@ -1,10 +1,11 @@
 import { eq, inArray } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { NormalizedTag } from "../domain/tag";
+import type { Edge } from "../domain/tag-graph";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
-import { quizTags, tag } from "./schema";
+import { quizTags, tag, tagEdge } from "./schema";
 
 // Replace a quiz's tags with `tags` (find-or-create each by key, then swap the
 // quiz_tags rows). Atomic via D1 batch. Pass [] to clear all tags. Callers
@@ -66,12 +67,38 @@ export async function listQuizTags(env: Bindings, quizId: string): Promise<strin
   return (await tagsForQuizzes(env, [quizId])).get(quizId) ?? [];
 }
 
-// Quiz ids carrying the given tag (by normalized key). Powers the timeline filter.
-export async function quizIdsWithTagKey(env: Bindings, key: string): Promise<string[]> {
+// Resolve a normalized tag key to its id (null if no such tag).
+export async function tagIdByKey(env: Bindings, key: string): Promise<string | null> {
+  const rows = await db(env).select({ id: tag.id }).from(tag).where(eq(tag.nameKey, key)).limit(1);
+  return rows[0]?.id ?? null;
+}
+
+// Quiz ids authored-tagged with ANY of the given tag ids (deduped). The broad-tag
+// filter passes a tag id plus its descendants (ADR-0007 effective match).
+export async function quizIdsWithTagIds(env: Bindings, tagIds: string[]): Promise<string[]> {
+  if (!tagIds.length) return [];
   const rows = await db(env)
     .select({ quizId: quizTags.quizId })
     .from(quizTags)
-    .innerJoin(tag, eq(quizTags.tagId, tag.id))
-    .where(eq(tag.nameKey, key));
-  return rows.map((r) => r.quizId);
+    .where(inArray(quizTags.tagId, tagIds));
+  return [...new Set(rows.map((r) => r.quizId))];
+}
+
+// Display names for a set of tag ids (alphabetical) — for drill-down chips.
+export async function tagNamesByIds(env: Bindings, ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+  const rows = await db(env)
+    .select({ name: tag.name })
+    .from(tag)
+    .where(inArray(tag.id, ids))
+    .orderBy(tag.name);
+  return rows.map((r) => r.name);
+}
+
+// All subsumption edges. The tag graph is small — load once and traverse in memory
+// (worker/domain/tag-graph.ts).
+export async function loadTagEdges(env: Bindings): Promise<Edge[]> {
+  return db(env)
+    .select({ narrowerId: tagEdge.narrowerId, broaderId: tagEdge.broaderId })
+    .from(tagEdge);
 }

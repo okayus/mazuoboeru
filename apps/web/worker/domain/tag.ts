@@ -6,7 +6,11 @@
 export type NormalizedTag = { name: string; key: string };
 
 export const MAX_TAG_LEN = 30;
-export const MAX_TAGS_PER_QUIZ = 5;
+// Generous ceiling rather than a literal "unlimited": with the tag DAG (ADR-0007),
+// broader tags are derived automatically, so few authored tags are needed; this bounds
+// pathological tag-spam without constraining real use. Real spam controls (rate limit)
+// are deferred (additive). Effective tags (the upward closure) are unbounded.
+export const MAX_TAGS_PER_QUIZ = 30;
 
 // Normalize one raw tag. Returns null when empty or too long after normalization —
 // callers drop nulls rather than erroring on a stray blank chip.
