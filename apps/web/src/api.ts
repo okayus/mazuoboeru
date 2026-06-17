@@ -44,6 +44,7 @@ export type AttemptState = {
   attempt: { id: string; finished: boolean; score: number | null; total: number | null; startedAt: number };
   quiz: PublicQuiz;
   answers: AnswerDetail[];
+  favorited: boolean;
 };
 export type AnswerResult = {
   isCorrect: boolean;
@@ -176,4 +177,10 @@ export const api = {
     }),
 
   dashboard: () => request<Dashboard>("/dashboard"),
+
+  favorites: () => request<{ quizzes: TimelineItem[] }>("/favorites"),
+  addFavorite: (quizId: string) =>
+    request<{ ok: true; favorited: boolean }>(`/favorites/${quizId}`, { method: "POST" }),
+  removeFavorite: (quizId: string) =>
+    request<{ ok: true; favorited: boolean }>(`/favorites/${quizId}`, { method: "DELETE" }),
 };
