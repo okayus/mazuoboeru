@@ -3,6 +3,7 @@ import { api } from "./api";
 import { navigate, type Route, useRoute } from "./useRoute";
 import { Challenge } from "./views/Challenge";
 import { CreateQuiz } from "./views/CreateQuiz";
+import { Dashboard } from "./views/Dashboard";
 import { Login } from "./views/Login";
 import { MyQuizzes } from "./views/MyQuizzes";
 import { Settings } from "./views/Settings";
@@ -32,6 +33,7 @@ export function App() {
         <nav>
           <a href="#/">タイムライン</a>
           {user ? <a href="#/mine">マイクイズ</a> : null}
+          {user ? <a href="#/dashboard">ダッシュボード</a> : null}
           {user ? <a href="#/create">作る</a> : null}
           {user ? <a href="#/settings">PAT</a> : null}
           {!loaded ? null : user ? (
@@ -61,6 +63,8 @@ function View({ route }: { route: Route }) {
       return <CreateQuiz />;
     case "mine":
       return <MyQuizzes />;
+    case "dashboard":
+      return <Dashboard />;
     case "challenge":
       return <Challenge quizId={route.quizId} />;
     case "settings":

@@ -102,3 +102,15 @@ export async function loadTagEdges(env: Bindings): Promise<Edge[]> {
     .select({ narrowerId: tagEdge.narrowerId, broaderId: tagEdge.broaderId })
     .from(tagEdge);
 }
+
+// Tag id → display name map, for buckets keyed by id (e.g. the dashboard).
+export async function tagNameMap(env: Bindings, ids: string[]): Promise<Map<string, string>> {
+  const m = new Map<string, string>();
+  if (!ids.length) return m;
+  const rows = await db(env)
+    .select({ id: tag.id, name: tag.name })
+    .from(tag)
+    .where(inArray(tag.id, ids));
+  for (const r of rows) m.set(r.id, r.name);
+  return m;
+}

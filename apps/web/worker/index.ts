@@ -5,6 +5,7 @@ import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
 import { attemptsRouter } from "./routes/attempts";
+import { dashboardRouter } from "./routes/dashboard";
 import { publicRouter } from "./routes/public";
 import { quizzesRouter } from "./routes/quizzes";
 import { reportsRouter } from "./routes/reports";
@@ -54,6 +55,9 @@ api.route("/attempts", attemptsRouter);
 
 // Moderation report channel (session-only, per-user rate limited).
 api.route("/reports", reportsRouter);
+
+// Private learning dashboard (session-only): accuracy / streak / per-tag (ADR-0006).
+api.route("/dashboard", dashboardRouter);
 
 app.route("/api", api);
 
