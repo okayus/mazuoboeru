@@ -327,3 +327,28 @@ table.tokens td {
   background: none;
   padding: 0;
 }
+
+/* Tags: chip-styled, clickable on the timeline to filter. */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.tag {
+  font-size: 0.75rem;
+  background: #eef0ff;
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+button.tag {
+  border: none;
+  cursor: pointer;
+}
+.tag-filter {
+  color: var(--muted);
+}
+.tag-editor {
+  margin-top: 8px;
+}

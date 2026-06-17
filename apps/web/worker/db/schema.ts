@@ -230,6 +230,41 @@ export const report = sqliteTable(
   ],
 );
 
+// Tags are quiz-level metadata (a minor, non-gradeable edit — ADR-0002). name_key
+// is the unique identity (NFKC + trim + collapse + ASCII-lowercase, see
+// worker/domain/tag.ts); name keeps display casing. Per-tag dashboard accuracy
+// reads these (ADR-0006).
+export const tag = sqliteTable(
+  "tag",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("idx_tag_name_key").on(t.nameKey)],
+);
+
+// Quiz<->tag join, part of the quiz aggregate: quiz_id cascades (quiz uses soft
+// delete, so this only fires on a Phase 4 hard delete); tag_id does NOT cascade
+// (a tag outlives any one quiz). The (quiz_id, tag_id) PK indexes quiz_id as a
+// prefix, so only the reverse tag_id index is declared.
+export const quizTags = sqliteTable(
+  "quiz_tags",
+  {
+    quizId: text("quiz_id")
+      .notNull()
+      .references(() => quiz.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => tag.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.quizId, t.tagId] }),
+    index("idx_quiz_tags_tag").on(t.tagId),
+  ],
+);
+
 // Inferred row types for use across the worker (query results / inserts).
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -241,3 +276,4 @@ export type Choice = typeof choice.$inferSelect;
 export type Attempt = typeof attempt.$inferSelect;
 export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
 export type Report = typeof report.$inferSelect;
+export type Tag = typeof tag.$inferSelect;

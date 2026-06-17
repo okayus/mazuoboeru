@@ -17,6 +17,8 @@ import {
   softDeleteQuiz,
   updateQuizMeta,
 } from "../db/quiz-queries";
+import { listQuizTags, setQuizTags, tagsForQuizzes } from "../db/tag-queries";
+import { parseTags } from "../domain/tag";
 import { validateForPublish } from "../domain/quiz-validation";
 import type { Env } from "../types";
 
@@ -31,15 +33,22 @@ const questionInput = z.object({
   choices: z.array(choiceInput).max(20),
 });
 // Draft-permissive (CONTEXT.md: a draft may be incomplete). The publish gate, not
-// this schema, enforces gradeability.
+// this schema, enforces gradeability. `tags` is loose here (raw strings); the
+// domain parseTags() does the real normalization / dedup / capping.
 const contentSchema = z.object({
   title: z.string().trim().max(200),
   description: z.string().trim().max(4000).optional(),
   questions: z.array(questionInput).max(100),
+  tags: z.array(z.string()).max(50).optional(),
 });
 const metaSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(4000).optional(),
+});
+// Tags are quiz-level metadata — settable on any non-deleted quiz the author owns
+// (a minor edit per ADR-0002), so this lives apart from the content/meta PATCH.
+const tagsSchema = z.object({
+  tags: z.array(z.string()).max(50),
 });
 
 type ContentData = z.infer<typeof contentSchema>;
@@ -58,7 +67,7 @@ function toContentInput(data: ContentData): QuizContentInput {
 }
 
 // Author view: full fidelity including is_correct + explanation (it's the editor).
-function authorQuizJson(loaded: LoadedQuiz) {
+function authorQuizJson(loaded: LoadedQuiz, tags: string[] = []) {
   return {
     id: loaded.quiz.id,
     title: loaded.quiz.title,
@@ -67,6 +76,7 @@ function authorQuizJson(loaded: LoadedQuiz) {
     createdAt: loaded.quiz.createdAt,
     updatedAt: loaded.quiz.updatedAt,
     publishedAt: loaded.quiz.publishedAt,
+    tags,
     questions: loaded.questions.map((q) => ({
       id: q.id,
       type: q.type,
@@ -94,14 +104,20 @@ quizzesRouter.post("/", requireAuth, requireScope("quiz:write"), requireCreator,
     return c.json({ error: "invalid_body", issues: parsed.error.issues }, 400);
   }
   const id = await createDraftQuiz(c.env, user.id, toContentInput(parsed.data));
+  if (parsed.data.tags?.length) {
+    await setQuizTags(c.env, id, parseTags(parsed.data.tags));
+  }
   return c.json({ id }, 201);
 });
 
-// List the caller's own quizzes (any status). Must precede GET /:id.
+// List the caller's own quizzes (any status), with their tags. Must precede GET /:id.
 quizzesRouter.get("/mine", requireAuth, async (c) => {
   const user = requireUser(c);
   const quizzes = await listQuizzesByAuthor(c.env, user.id);
-  return c.json({ quizzes });
+  const tagsByQuiz = await tagsForQuizzes(c.env, quizzes.map((q) => q.id));
+  return c.json({
+    quizzes: quizzes.map((q) => ({ ...q, tags: tagsByQuiz.get(q.id) ?? [] })),
+  });
 });
 
 // Author edit view of a single quiz.
@@ -111,7 +127,8 @@ quizzesRouter.get("/:id", requireAuth, async (c) => {
   if (!loaded || loaded.quiz.deletedAt !== null || loaded.quiz.authorId !== user.id) {
     return c.json({ error: "not_found" }, 404);
   }
-  return c.json({ quiz: authorQuizJson(loaded) });
+  const tags = await listQuizTags(c.env, loaded.quiz.id);
+  return c.json({ quiz: authorQuizJson(loaded, tags) });
 });
 
 // Edit. Drafts: full content replace. Published/hidden: title/description only
@@ -171,6 +188,24 @@ quizzesRouter.post("/:id/publish", requireAuth, requireScope("quiz:write"), requ
   }
   await publishQuiz(c.env, id);
   return c.json({ ok: true, status: "published" });
+});
+
+// Set/replace a quiz's tags. Author-only, any non-deleted status (tags are a minor
+// metadata edit — ADR-0002 — so this is allowed post-publish, unlike restructuring).
+quizzesRouter.put("/:id/tags", requireAuth, requireScope("quiz:write"), async (c) => {
+  const user = requireUser(c);
+  const id = c.req.param("id");
+  const loaded = await loadQuizWithContent(c.env, id);
+  if (!loaded || loaded.quiz.deletedAt !== null || loaded.quiz.authorId !== user.id) {
+    return c.json({ error: "not_found" }, 404);
+  }
+  const body = (await c.req.json().catch(() => null)) as unknown;
+  const parsed = tagsSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "invalid_body", issues: parsed.error.issues }, 400);
+  }
+  await setQuizTags(c.env, id, parseTags(parsed.data.tags));
+  return c.json({ ok: true, tags: await listQuizTags(c.env, id) });
 });
 
 // Soft delete (ADR-0002). Author only.
