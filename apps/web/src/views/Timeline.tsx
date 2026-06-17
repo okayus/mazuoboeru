@@ -27,6 +27,31 @@ export function Timeline() {
         </p>
       ) : null}
 
+      {tag && data.related ? (
+        <div className="tag-nav">
+          {data.related.broader.length ? (
+            <div className="tags">
+              <span className="meta">広い:</span>
+              {data.related.broader.map((t) => (
+                <button key={t} className="tag" onClick={() => setTag(t)}>
+                  ▲ {t}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {data.related.narrower.length ? (
+            <div className="tags">
+              <span className="meta">絞り込む:</span>
+              {data.related.narrower.map((t) => (
+                <button key={t} className="tag" onClick={() => setTag(t)}>
+                  ▼ {t}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {items.length === 0 ? (
         <p>{tag ? "このタグのクイズはまだありません。" : "まだ公開されたクイズはありません。"}</p>
       ) : (

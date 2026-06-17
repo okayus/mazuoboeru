@@ -265,6 +265,27 @@ export const quizTags = sqliteTable(
   ],
 );
 
+// Directed broader/narrower ("is-a") edge forming the tag DAG (ADR-0007). One row per
+// (narrower ⊂ broader); multi-parent allowed. Effective tags are derived (upward closure)
+// at read time — these rows are the stored truth, quiz_tags stays authored-only. Both ids
+// CASCADE. (narrower_id, broader_id) PK covers narrower_id prefix; reverse broader_id
+// index serves children/descendant traversal (worker/domain/tag-graph.ts).
+export const tagEdge = sqliteTable(
+  "tag_edge",
+  {
+    narrowerId: text("narrower_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+    broaderId: text("broader_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.narrowerId, t.broaderId] }),
+    index("idx_tag_edge_broader").on(t.broaderId),
+  ],
+);
+
 // Inferred row types for use across the worker (query results / inserts).
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -277,3 +298,4 @@ export type Attempt = typeof attempt.$inferSelect;
 export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
 export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
+export type TagEdge = typeof tagEdge.$inferSelect;

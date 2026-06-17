@@ -3,7 +3,7 @@ import type { Bindings } from "../types";
 import { db } from "./client";
 import { type LoadedQuiz, loadQuizWithContent } from "./quiz-queries";
 import { question, quiz, user } from "./schema";
-import { quizIdsWithTagKey, tagsForQuizzes } from "./tag-queries";
+import { tagsForQuizzes } from "./tag-queries";
 
 export type TimelineItem = {
   id: string;
@@ -17,20 +17,16 @@ export type TimelineItem = {
 
 // Public timeline: published, non-deleted quizzes, newest first. The canonical
 // public filter is always status='published' AND deleted_at IS NULL (ADR-0002).
-// `tagKey` (normalized) restricts to quizzes carrying that tag.
+// `restrictQuizIds`, when given, limits the timeline to that id set (the broad-tag
+// filter resolves a tag + its descendants to ids in the route — ADR-0007).
 export async function listPublishedQuizzes(
   env: Bindings,
-  opts: { limit?: number; tagKey?: string } = {},
+  opts: { limit?: number; restrictQuizIds?: string[] } = {},
 ): Promise<TimelineItem[]> {
   const d = db(env);
   const limit = opts.limit ?? 50;
-
-  // Resolve the tag filter to a quiz-id set up front; no matches → empty timeline.
-  let taggedIds: string[] | null = null;
-  if (opts.tagKey) {
-    taggedIds = await quizIdsWithTagKey(env, opts.tagKey);
-    if (taggedIds.length === 0) return [];
-  }
+  const restrict = opts.restrictQuizIds;
+  if (restrict && restrict.length === 0) return [];
 
   const rows = await d
     .select({
@@ -46,7 +42,7 @@ export async function listPublishedQuizzes(
       and(
         eq(quiz.status, "published"),
         isNull(quiz.deletedAt),
-        ...(taggedIds ? [inArray(quiz.id, taggedIds)] : []),
+        ...(restrict ? [inArray(quiz.id, restrict)] : []),
       ),
     )
     .orderBy(desc(quiz.publishedAt))

@@ -129,7 +129,7 @@ export const api = {
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
 
   timeline: (tag?: string) =>
-    request<{ quizzes: TimelineItem[] }>(
+    request<{ quizzes: TimelineItem[]; related?: { broader: string[]; narrower: string[] } }>(
       `/public/quizzes${tag ? `?tag=${encodeURIComponent(tag)}` : ""}`,
     ),
   publicQuiz: (id: string) => request<{ quiz: PublicQuiz }>(`/public/quizzes/${id}`),

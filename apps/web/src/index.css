@@ -352,3 +352,9 @@ button.tag {
 .tag-editor {
   margin-top: 8px;
 }
+.tag-nav {
+  margin: 8px 0;
+}
+.tag-nav .tags {
+  align-items: center;
+}
