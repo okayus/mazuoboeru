@@ -1,10 +1,5 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import {
-  api,
-  type AttemptState,
-  isApiError,
-  type PublicQuestion,
-} from "../api";
+import { api, type AttemptState, isApiError, type PublicQuestion } from "../api";
 import { QuizMarkdown } from "../QuizMarkdown";
 import { ReportButton } from "./ReportButton";
 
@@ -14,6 +9,7 @@ type Feedback = {
   explanation: string | null;
   selected: string[];
 };
+type Stat = { correct: number; total: number };
 
 export function Challenge({ quizId }: { quizId: string }) {
   const [state, setState] = useState<AttemptState | null>(null);
@@ -21,6 +17,8 @@ export function Challenge({ quizId }: { quizId: string }) {
   const [needLogin, setNeedLogin] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
   const [favorited, setFavorited] = useState(false);
+  const [stats, setStats] = useState<Record<string, Stat>>({});
+  const [idx, setIdx] = useState(0);
 
   useEffect(() => {
     api
@@ -28,6 +26,7 @@ export function Challenge({ quizId }: { quizId: string }) {
       .then((s) => {
         setState(s);
         setFavorited(s.favorited);
+        setStats(s.questionStats);
         const initial: Record<string, Feedback> = {};
         for (const a of s.answers) {
           initial[a.questionId] = {
@@ -38,6 +37,9 @@ export function Challenge({ quizId }: { quizId: string }) {
           };
         }
         setFeedback(initial);
+        // Resume at the first unanswered question (or the last, if all answered).
+        const firstUnanswered = s.quiz.questions.findIndex((q) => !(q.id in initial));
+        setIdx(firstUnanswered === -1 ? Math.max(0, s.quiz.questions.length - 1) : firstUnanswered);
       })
       .catch((e) => {
         if (isApiError(e) && e.status === 401) setNeedLogin(true);
@@ -46,12 +48,19 @@ export function Challenge({ quizId }: { quizId: string }) {
       });
   }, [quizId]);
 
-  // Stable across renders (functional setState needs no deps) so memo(QuestionCard)
-  // can skip the sibling cards when one question's feedback changes. MUST be declared
-  // before the early returns below: a hook after a conditional return changes the hook
-  // count between the first (state===null) and later renders → React error #310.
+  // Stable across renders. Records feedback AND bumps this question's own-accuracy
+  // stat locally (so it updates immediately after answering — ADR-0006 activity).
+  // MUST be declared before the early returns below (a hook after a conditional
+  // return changes the hook count → React error #310).
   const onAnswered = useCallback((questionId: string, fb: Feedback) => {
     setFeedback((prev) => ({ ...prev, [questionId]: fb }));
+    setStats((prev) => {
+      const s = prev[questionId] ?? { correct: 0, total: 0 };
+      return {
+        ...prev,
+        [questionId]: { correct: s.correct + (fb.isCorrect ? 1 : 0), total: s.total + 1 },
+      };
+    });
   }, []);
 
   if (needLogin)
@@ -63,9 +72,12 @@ export function Challenge({ quizId }: { quizId: string }) {
   if (error) return <p className="error">{error}</p>;
   if (!state) return <p>読み込み中…</p>;
 
+  const questions = state.quiz.questions;
   const answeredCount = Object.keys(feedback).length;
-  const total = state.quiz.questions.length;
+  const total = questions.length;
   const score = Object.values(feedback).filter((f) => f.isCorrect).length;
+  const allDone = answeredCount >= total;
+  const current = questions[idx];
 
   const toggleFavorite = async () => {
     try {
@@ -93,19 +105,37 @@ export function Challenge({ quizId }: { quizId: string }) {
 
       <p className="progress">
         進捗: {answeredCount} / {total}
-        {answeredCount >= total ? ` ・ 採点: ${score} / ${total} 正解` : ""}
+        {allDone ? ` ・ 採点: ${score} / ${total} 正解` : ""}
       </p>
 
-      {state.quiz.questions.map((q, i) => (
+      {current ? (
         <QuestionCard
-          key={q.id}
-          index={i}
-          question={q}
+          key={current.id}
+          index={idx}
+          question={current}
           attemptId={state.attempt.id}
-          feedback={feedback[q.id]}
+          feedback={feedback[current.id]}
+          stat={stats[current.id]}
           onAnswered={onAnswered}
         />
-      ))}
+      ) : null}
+
+      <div className="btn-row">
+        {idx > 0 ? (
+          <button className="link" onClick={() => setIdx((i) => i - 1)}>
+            ← 前へ
+          </button>
+        ) : null}
+        {idx < total - 1 ? (
+          <button onClick={() => setIdx((i) => i + 1)}>次へ →</button>
+        ) : null}
+      </div>
+
+      {allDone ? (
+        <p className="meta">
+          全{total}問に回答しました（採点: {score} / {total}）。 <a href="#/">タイムラインへ</a>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -115,15 +145,20 @@ const QuestionCard = memo(function QuestionCard(props: {
   question: PublicQuestion;
   attemptId: string;
   feedback: Feedback | undefined;
+  stat: Stat | undefined;
   onAnswered: (questionId: string, fb: Feedback) => void;
 }) {
-  const { question, attemptId, feedback } = props;
+  const { question, attemptId, feedback, stat } = props;
   const [selected, setSelected] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isMulti = question.type === "mcq_multi";
   const locked = feedback !== undefined;
+  const statText =
+    stat && stat.total > 0
+      ? `${Math.round((stat.correct / stat.total) * 100)}%（${stat.correct}/${stat.total}）`
+      : "初挑戦";
 
   const toggle = (choiceId: string) => {
     if (locked) return;
@@ -160,10 +195,9 @@ const QuestionCard = memo(function QuestionCard(props: {
       <div className="q-head">
         <strong>Q{props.index + 1}</strong>
         <span className="badge">{isMulti ? "複数選択" : "単一選択"}</span>
-        {locked ? (
-          <span className="badge">{feedback.isCorrect ? "正解" : "不正解"}</span>
-        ) : null}
+        {locked ? <span className="badge">{feedback.isCorrect ? "正解" : "不正解"}</span> : null}
       </div>
+      <div className="meta">あなたのこの設問の通算正答率: {statText}</div>
       <QuizMarkdown>{question.prompt}</QuizMarkdown>
 
       <ul className="choices">
