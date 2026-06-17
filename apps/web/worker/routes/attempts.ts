@@ -8,6 +8,7 @@ import {
   getAttempt,
   listAttemptAnswers,
   recordAnswer,
+  userQuestionStats,
 } from "../db/attempt-queries";
 import { isFavorited } from "../db/favorite-queries";
 import { loadPublishedQuiz, type PublicQuiz } from "../db/public-queries";
@@ -87,11 +88,17 @@ attemptsRouter.post("/", async (c) => {
   const att = existing ?? (await createAttempt(c.env, user.id, parsed.data.quizId));
   const answers = await buildAnswerDetails(c.env, att.id, found);
   const favorited = await isFavorited(c.env, user.id, parsed.data.quizId);
+  const questionStats = await userQuestionStats(
+    c.env,
+    user.id,
+    found.loaded.questions.map((q) => q.id),
+  );
   return c.json({
     attempt: attemptJson(att),
     quiz: publicQuizJson(found.loaded, found.authorDisplayName),
     answers,
     favorited,
+    questionStats,
   });
 });
 
@@ -104,11 +111,17 @@ attemptsRouter.get("/:attemptId", async (c) => {
   if (!found) return c.json({ error: "quiz_unavailable" }, 409);
   const answers = await buildAnswerDetails(c.env, att.id, found);
   const favorited = await isFavorited(c.env, user.id, att.quizId);
+  const questionStats = await userQuestionStats(
+    c.env,
+    user.id,
+    found.loaded.questions.map((q) => q.id),
+  );
   return c.json({
     attempt: attemptJson(att),
     quiz: publicQuizJson(found.loaded, found.authorDisplayName),
     answers,
     favorited,
+    questionStats,
   });
 });
 

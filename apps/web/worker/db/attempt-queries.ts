@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, sum } from "drizzle-orm";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
@@ -88,4 +88,29 @@ export async function finalizeAttempt(
     .update(attempt)
     .set({ finishedAt: Date.now(), score, total })
     .where(eq(attempt.id, attemptId));
+}
+
+// The caller's own all-time accuracy per question (across all their attempts —
+// activity-framed, re-answers included; ADR-0006). Shown during the challenge.
+export async function userQuestionStats(
+  env: Bindings,
+  userId: string,
+  questionIds: string[],
+): Promise<Record<string, { correct: number; total: number }>> {
+  const out: Record<string, { correct: number; total: number }> = {};
+  if (!questionIds.length) return out;
+  const rows = await db(env)
+    .select({
+      questionId: attemptAnswer.questionId,
+      total: count(),
+      correct: sum(attemptAnswer.isCorrect),
+    })
+    .from(attemptAnswer)
+    .innerJoin(attempt, eq(attemptAnswer.attemptId, attempt.id))
+    .where(and(eq(attempt.userId, userId), inArray(attemptAnswer.questionId, questionIds)))
+    .groupBy(attemptAnswer.questionId);
+  for (const r of rows) {
+    out[r.questionId] = { correct: Number(r.correct ?? 0), total: Number(r.total) };
+  }
+  return out;
 }

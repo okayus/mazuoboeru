@@ -45,6 +45,7 @@ export type AttemptState = {
   quiz: PublicQuiz;
   answers: AnswerDetail[];
   favorited: boolean;
+  questionStats: Record<string, { correct: number; total: number }>;
 };
 export type AnswerResult = {
   isCorrect: boolean;
