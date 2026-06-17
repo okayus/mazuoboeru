@@ -103,6 +103,15 @@ export type ReportInput = {
   reasonText?: string;
 };
 
+export type TagAccuracy = { name: string; correct: number; total: number };
+export type Dashboard = {
+  overall: { correct: number; total: number };
+  streak: { current: number; longest: number };
+  tags: TagAccuracy[];
+  untagged: { correct: number; total: number };
+  quizzesAttempted: number;
+};
+
 export type ApiError = { isApiError: true; status: number; body: unknown };
 
 export function isApiError(e: unknown): e is ApiError {
@@ -165,4 +174,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  dashboard: () => request<Dashboard>("/dashboard"),
 };
