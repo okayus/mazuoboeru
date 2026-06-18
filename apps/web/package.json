@@ -9,7 +9,7 @@
     "deploy": "pnpm build && wrangler deploy",
     "check": "tsc --noEmit",
     "check:e2e": "tsc --noEmit -p e2e/tsconfig.json",
-    "test": "vitest run",
+    "test": "vp test run",
     "db:migrate": "wrangler d1 migrations apply mazuoboeru-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote",
     "secrets:prod": "bash scripts/put-prod-secrets.sh",
@@ -39,7 +39,6 @@
     "@vitejs/plugin-react": "^4.3.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
-    "vitest": "^4.1.8",
     "wrangler": "^3.100.0"
   }
 }

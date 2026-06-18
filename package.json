@@ -12,5 +12,11 @@
     "e2e": "pnpm --filter @mazuoboeru/web e2e"
   },
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "vite-plus": "^0.2.1",
+    "vitest": "4.1.9"
+  }
 }
