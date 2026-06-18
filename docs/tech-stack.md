@@ -35,10 +35,10 @@
 ## コーディング方針
 
 - **`class` を使わない。純粋関数 ＋ モジュール構成**（[[ts-functions-only-no-class]]）。
-- ドメインロジック（採点・SRS スケジューリング・集計）は副作用のない純粋関数に寄せ、I/O は境界へ。
+- ドメインロジック（採点・集計・復習リストの判定）は副作用のない純粋関数に寄せ、I/O は境界へ。
   - 特に **採点ロジックは純粋関数 ＋ サーバー実行**（テストしやすく、不正に強い）。
 - 型は厳密（`strict`）。Zod スキーマから型を導出。
-- テスト: Vitest（採点・SRS など純粋関数を重点）。e2e は `cloudflare-workers-e2e-playwright`。
+- テスト: Vitest（採点・集計など純粋関数を重点）。e2e は `cloudflare-workers-e2e-playwright`。
 
 ## ディレクトリ構成（pnpm workspaces）
 
@@ -59,7 +59,7 @@ mazuoboeru/
 │   │   └── wrangler.jsonc
 │   └── cli/           # @mazuoboeru/cli    : CLI / AI エージェント用（PAT で API を叩く薄い層）※2026-06-15 最小実装（mzo）
 ├── packages/
-│   ├── core/          # @mazuoboeru/core   : 純粋関数（採点・SRS・集計）※ロジック発生時に追加
+│   ├── core/          # @mazuoboeru/core   : 純粋関数（採点・集計）※ロジック発生時に追加
 │   └── db/            # @mazuoboeru/db     : Drizzle スキーマ & クエリ ※ロジック発生時に追加
 └── docs/              # 企画ドキュメント・ADR
 ```

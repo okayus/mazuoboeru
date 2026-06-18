@@ -1,7 +1,7 @@
 # データモデル
 
 Cloudflare D1（SQLite）前提。マルチユーザーの公開サービス。
-クイズは公開、個人の成績・SRS は本人のみ。採点はサーバー権威。
+クイズは公開、個人の成績・復習リストは本人のみ。採点はサーバー権威。
 
 ## エンティティ概観
 
@@ -15,8 +15,8 @@ question 1───* choice      (多肢選択の選択肢)
 quiz *───* tag             (quiz_tags)
 user 1───* attempt         (挑戦)
 attempt 1───* attempt_answer
-user *───* quiz            (favorite で多対多)
-user 1───* review_state    (SRS, 設問ごと)
+user *───* question        (review_list で多対多＝復習リスト / 旧 favorite を置換)
+user 1───* review_answer   (ドリルの回答・ストリーク算入)
 user 1───* report          (通報)
 ```
 
@@ -119,24 +119,28 @@ user 1───* report          (通報)
 - attempt_answer: `id` / `attempt_id` / `question_id` / `response`(JSON) / `is_correct` / `answered_at`。採点はサーバー側で確定。
 - **invariant**: `attempt_answer.is_correct` は **書き込み後に変更しない**。クイズ編集（重大変更を含む）でも触らない（履歴の改変は不正と見なす、[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）。
 
-### favorite（お気に入り / "my hot"）
+### review_list（復習リスト / "my hot list"・[[CONTEXT.md]] Review List）
 | カラム | 型 | 備考 |
 | --- | --- | --- |
 | user_id | text | FK → user（CASCADE・本人所有） |
-| quiz_id | text | FK → quiz（NO ACTION・一覧は published で絞る） |
+| question_id | text | FK → question（CASCADE・ハード削除時。ソフト削除運用では読み時に絞る） |
 | created_at | integer | epoch ms。一覧の並び（新しい順）に使う |
-|  |  | PK = (user_id, quiz_id) |
+|  |  | PK = (user_id, question_id) |
 
-- 本人だけの私的コレクション（[[CONTEXT.md]] Favorite）。挑戦画面のトグルで登録/解除。一覧（"my hot"）は `status='published' AND deleted_at IS NULL` で絞るので、非公開化された favorite は自然に落ちる。
+- **設問単位**の私的プール（旧 favorite＝クイズ単位を置換＝[ADR-0008](adr/0008-review-list-manual-pool.md)）。登録はクイズ単位一括（**追加時点の設問をスナップショットで insert**）でも設問単位でもよく、卒業（覚えた）は設問単位で外す。一覧（"my hot list"）とドリルは、設問の属する quiz が `status='published' AND deleted_at IS NULL` のものに絞る（非公開化された設問は自然に落ちる）。
 
-### review_state（SRS・設問ごと・本人のみ）
+### review_answer（ドリルの回答・本人のみ）
 | カラム | 型 | 備考 |
 | --- | --- | --- |
-| user_id | text | FK |
-| question_id | text | FK |
-| ease / interval / due_at | num/int | SM-2 系のパラメータ |
-| last_reviewed_at | integer | |
-|  |  | PK = (user_id, question_id) |
+| id | text | PK |
+| user_id | text | FK → user（CASCADE） |
+| question_id | text | FK → question |
+| is_correct | integer (bool) | サーバー採点（既存 `gradeSelection` を再利用） |
+| answered_at | integer | epoch ms。索引 (user_id, answered_at) でストリーク判定 |
+
+- [[CONTEXT.md]] Drill の記録。**Attempt には乗せない**（Attempt＝1クイズ通しの意味を保つため）。ストリーク／活動量は「`attempt_answer` または `review_answer` のある JST 日／回答」で数える（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記・[ADR-0008](adr/0008-review-list-manual-pool.md)）。
+
+> ⚠️ **`review_state`（SM-2: ease/interval/due_at）は当面作らない**。復習は手動の `review_list`＋通知駆動スペーシングで実現し、在庫スケジューラを持たない（[ADR-0008](adr/0008-review-list-manual-pool.md)）。将来アルゴリズム的 SRS が要れば別 ADR で `review_state` を再開する。
 
 ### report（通報・モデレーション）
 | カラム | 型 | 備考 |
@@ -155,7 +159,7 @@ user 1───* report          (通報)
 
 ## 集計（発見・ダッシュボード用）
 
-- 人気クイズ: `attempt` 数・`favorite` 数の集計。頻出ならキャッシュ／事前集計テーブル（`quiz_stats`）化。
+- 人気クイズ: `attempt` 数の集計（頻出ならキャッシュ／事前集計テーブル `quiz_stats` 化）。※旧「`favorite` 数」は Review List 化（設問単位・私的）で公開人気指標には使わない。
 - 作者の反響: quiz 別の挑戦数・平均正答率（attempt から）。
 - 本人の学習: 正答率・ストリーク・タグ別習熟度（attempt / attempt_answer から）。
 - いずれも **公開はクイズ単位の集計まで**。個人の成績は本人のみ。
@@ -167,7 +171,7 @@ user 1───* report          (通報)
 - `question(quiz_id, position)` / `choice(question_id, position)`。
 - `quiz_tags(tag_id)` ── タグ別の絞り込み（`quiz_id` は PK のプレフィックスが兼ねるので別索引は作らない）。
 - `attempt(user_id, quiz_id)` / `attempt(quiz_id)` ── 本人履歴・クイズ集計。
-- `review_state(user_id, due_at)` ── 今日の復習キュー。
+- `review_answer(user_id, answered_at)` ── ストリーク／活動量にドリルを算入（[ADR-0008](adr/0008-review-list-manual-pool.md)・[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記）。
 - `session(expires_at)` ── 期限切れ掃除。
 - `oauth_account(user_id)` ── 「私のリンク済みプロバイダ」表示。
 - `api_token(token_hash)` ── PAT 認証時のホットパス（unique）。`api_token(user_id, revoked_at)` ── 管理画面用。
