@@ -1,70 +1,46 @@
 // Typed client for the worker API. Same-origin fetch sends the session cookie and
-// the Origin header automatically (the latter satisfies the CSRF check). Errors
-// are thrown as plain objects (no classes — project rule).
+// the Origin header automatically (the latter satisfies the CSRF check). Errors are
+// thrown as plain objects (no classes — project rule).
+//
+// Response DTOs are inferred from the worker's handlers via Hono RPC (hc<AppType> +
+// InferResponseType), so the client and server can't drift (ADR-0011). We keep the
+// ergonomic `api.*` facade + the `request<T>` fetch wrapper (views are unchanged);
+// `client` exists only to carry the types (`typeof client...`), it's never called.
+// Request bodies (QuizInput etc.) stay hand-written — routes validate via zod, not a
+// Hono validator, so RPC can't infer the input shapes.
+import { hc, type InferResponseType } from "hono/client";
+import type { AppType } from "../worker";
+import type { ApiErrorBody, ApiErrorCode } from "../worker/http/errors";
 
-export type Me = { id: string; displayName: string; role: string };
+const client = hc<AppType>("/");
 
-export type TimelineItem = {
-  id: string;
-  title: string;
-  description: string | null;
-  authorDisplayName: string;
-  publishedAt: number | null;
-  questionCount: number;
-  tags: string[];
-};
+// Success body of an endpoint: every error response is `{ error: ApiErrorCode, ... }`,
+// so excluding that envelope leaves only the 2xx shape (no per-status filtering needed).
+type Ok<T> = Exclude<InferResponseType<T>, ApiErrorBody>;
 
-export type PublicChoice = { id: string; text: string; position: number };
+// ---- Response DTOs, derived from the server (single source of truth) ----
+export type Me = NonNullable<Ok<typeof client.api.auth.me.$get>["user"]>;
+
+export type TimelineItem = Ok<typeof client.api.public.quizzes.$get>["quizzes"][number];
+
+export type PublicQuiz = Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>["quiz"];
+export type PublicQuestion = PublicQuiz["questions"][number];
+export type PublicChoice = PublicQuestion["choices"][number];
+
+export type AttemptState = Ok<typeof client.api.attempts.$post>;
+export type AnswerDetail = AttemptState["answers"][number];
+export type AnswerResult = Ok<(typeof client.api.attempts)[":attemptId"]["answers"]["$post"]>;
+
+export type AuthorQuizSummary = Ok<typeof client.api.quizzes.mine.$get>["quizzes"][number];
+
+export type TokenSummary = Ok<typeof client.api.tokens.$get>["tokens"][number];
+export type CreatedToken = Ok<typeof client.api.tokens.$post>["token"];
+
+export type Dashboard = Ok<typeof client.api.dashboard.$get>;
+export type TagAccuracy = Dashboard["tags"][number];
+
+// ---- Request inputs (hand-written; these are what the client SENDS) ----
 export type QuestionType = "mcq_single" | "mcq_multi";
-export type PublicQuestion = {
-  id: string;
-  type: QuestionType;
-  prompt: string;
-  position: number;
-  choices: PublicChoice[];
-};
-export type PublicQuiz = {
-  id: string;
-  title: string;
-  description: string | null;
-  authorDisplayName: string;
-  publishedAt: number | null;
-  tags: string[];
-  questions: PublicQuestion[];
-};
-
-export type AnswerDetail = {
-  questionId: string;
-  selectedChoiceIds: string[];
-  isCorrect: boolean;
-  correctChoiceIds: string[];
-  explanation: string | null;
-};
-export type AttemptState = {
-  attempt: { id: string; finished: boolean; score: number | null; total: number | null; startedAt: number };
-  quiz: PublicQuiz;
-  answers: AnswerDetail[];
-  favorited: boolean;
-  questionStats: Record<string, { correct: number; total: number }>;
-};
-export type AnswerResult = {
-  isCorrect: boolean;
-  correctChoiceIds: string[];
-  explanation: string | null;
-  finished: boolean;
-  score: number | null;
-  total: number | null;
-};
-
-export type AuthorQuizSummary = {
-  id: string;
-  title: string;
-  status: "draft" | "published" | "hidden";
-  createdAt: number;
-  publishedAt: number | null;
-  tags: string[];
-};
-
 export type ChoiceInput = { text: string; isCorrect: boolean };
 export type QuestionInput = {
   type: QuestionType;
@@ -79,23 +55,6 @@ export type QuizInput = {
   tags?: string[];
 };
 
-export type TokenSummary = {
-  id: string;
-  name: string;
-  scopes: string[];
-  createdAt: number;
-  lastUsedAt: number | null;
-  expiresAt: number | null;
-  revokedAt: number | null;
-};
-export type CreatedToken = {
-  id: string;
-  name: string;
-  token: string;
-  scopes: string[];
-  createdAt: number;
-};
-
 export type ReportTargetType = "quiz" | "question" | "user";
 export type ReportReason = "spam" | "sexual" | "violence" | "copyright" | "other";
 export type ReportInput = {
@@ -105,16 +64,8 @@ export type ReportInput = {
   reasonText?: string;
 };
 
-export type TagAccuracy = { name: string; correct: number; total: number };
-export type Dashboard = {
-  overall: { correct: number; total: number };
-  streak: { current: number; longest: number };
-  tags: TagAccuracy[];
-  untagged: { correct: number; total: number };
-  quizzesAttempted: number;
-};
-
-export type ApiError = { isApiError: true; status: number; body: unknown };
+// ---- Error handling ----
+export type ApiError = { isApiError: true; status: number; body: ApiErrorBody | null };
 
 export function isApiError(e: unknown): e is ApiError {
   return typeof e === "object" && e !== null && "isApiError" in e;
@@ -129,59 +80,78 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await res.text();
   const body: unknown = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    const err: ApiError = { isApiError: true, status: res.status, body };
+    const err: ApiError = { isApiError: true, status: res.status, body: body as ApiErrorBody | null };
     throw err;
   }
   return body as T;
 }
 
 export const api = {
-  me: () => request<{ user: Me | null }>("/auth/me"),
-  logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
+  me: () => request<Ok<typeof client.api.auth.me.$get>>("/auth/me"),
+  logout: () => request<Ok<typeof client.api.auth.logout.$post>>("/auth/logout", { method: "POST" }),
 
   timeline: (tag?: string) =>
-    request<{ quizzes: TimelineItem[]; related?: { broader: string[]; narrower: string[] } }>(
+    request<Ok<typeof client.api.public.quizzes.$get>>(
       `/public/quizzes${tag ? `?tag=${encodeURIComponent(tag)}` : ""}`,
     ),
-  publicQuiz: (id: string) => request<{ quiz: PublicQuiz }>(`/public/quizzes/${id}`),
+  publicQuiz: (id: string) =>
+    request<Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>>(`/public/quizzes/${id}`),
 
-  myQuizzes: () => request<{ quizzes: AuthorQuizSummary[] }>("/quizzes/mine"),
+  myQuizzes: () => request<Ok<typeof client.api.quizzes.mine.$get>>("/quizzes/mine"),
   createQuiz: (input: QuizInput) =>
-    request<{ id: string }>("/quizzes", { method: "POST", body: JSON.stringify(input) }),
+    request<Ok<typeof client.api.quizzes.$post>>("/quizzes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   publishQuiz: (id: string) =>
-    request<{ ok: true; status: string }>(`/quizzes/${id}/publish`, { method: "POST" }),
+    request<Ok<(typeof client.api.quizzes)[":id"]["publish"]["$post"]>>(`/quizzes/${id}/publish`, {
+      method: "POST",
+    }),
   deleteQuiz: (id: string) =>
-    request<{ ok: true }>(`/quizzes/${id}`, { method: "DELETE" }),
+    request<Ok<(typeof client.api.quizzes)[":id"]["$delete"]>>(`/quizzes/${id}`, {
+      method: "DELETE",
+    }),
   setQuizTags: (id: string, tags: string[]) =>
-    request<{ ok: true; tags: string[] }>(`/quizzes/${id}/tags`, {
+    request<Ok<(typeof client.api.quizzes)[":id"]["tags"]["$put"]>>(`/quizzes/${id}/tags`, {
       method: "PUT",
       body: JSON.stringify({ tags }),
     }),
 
   startAttempt: (quizId: string) =>
-    request<AttemptState>("/attempts", { method: "POST", body: JSON.stringify({ quizId }) }),
-  submitAnswer: (attemptId: string, questionId: string, choiceIds: string[]) =>
-    request<AnswerResult>(`/attempts/${attemptId}/answers`, {
+    request<Ok<typeof client.api.attempts.$post>>("/attempts", {
       method: "POST",
-      body: JSON.stringify({ questionId, choiceIds }),
+      body: JSON.stringify({ quizId }),
     }),
+  submitAnswer: (attemptId: string, questionId: string, choiceIds: string[]) =>
+    request<Ok<(typeof client.api.attempts)[":attemptId"]["answers"]["$post"]>>(
+      `/attempts/${attemptId}/answers`,
+      { method: "POST", body: JSON.stringify({ questionId, choiceIds }) },
+    ),
 
-  listTokens: () => request<{ tokens: TokenSummary[] }>("/tokens"),
+  listTokens: () => request<Ok<typeof client.api.tokens.$get>>("/tokens"),
   createToken: (name: string) =>
-    request<{ token: CreatedToken }>("/tokens", { method: "POST", body: JSON.stringify({ name }) }),
-  revokeToken: (id: string) => request<{ ok: true }>(`/tokens/${id}`, { method: "DELETE" }),
+    request<Ok<typeof client.api.tokens.$post>>("/tokens", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  revokeToken: (id: string) =>
+    request<Ok<(typeof client.api.tokens)[":id"]["$delete"]>>(`/tokens/${id}`, { method: "DELETE" }),
 
   report: (input: ReportInput) =>
-    request<{ ok: true; duplicate?: boolean }>("/reports", {
+    request<Ok<typeof client.api.reports.$post>>("/reports", {
       method: "POST",
       body: JSON.stringify(input),
     }),
 
-  dashboard: () => request<Dashboard>("/dashboard"),
+  dashboard: () => request<Ok<typeof client.api.dashboard.$get>>("/dashboard"),
 
-  favorites: () => request<{ quizzes: TimelineItem[] }>("/favorites"),
+  favorites: () => request<Ok<typeof client.api.favorites.$get>>("/favorites"),
   addFavorite: (quizId: string) =>
-    request<{ ok: true; favorited: boolean }>(`/favorites/${quizId}`, { method: "POST" }),
+    request<Ok<(typeof client.api.favorites)[":quizId"]["$post"]>>(`/favorites/${quizId}`, {
+      method: "POST",
+    }),
   removeFavorite: (quizId: string) =>
-    request<{ ok: true; favorited: boolean }>(`/favorites/${quizId}`, { method: "DELETE" }),
+    request<Ok<(typeof client.api.favorites)[":quizId"]["$delete"]>>(`/favorites/${quizId}`, {
+      method: "DELETE",
+    }),
 };

@@ -14,8 +14,15 @@ export type PublishCheckInput = {
   questions: ReadonlyArray<QuestionShape>;
 };
 
+export type PublishErrorCode =
+  | "title_required"
+  | "at_least_one_question"
+  | "question_needs_two_choices"
+  | "single_needs_exactly_one_correct"
+  | "multi_needs_at_least_one_correct";
+
 export type PublishError = {
-  code: string;
+  code: PublishErrorCode;
   questionIndex?: number;
 };
 

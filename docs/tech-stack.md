@@ -36,7 +36,7 @@
 
 - **`class` を使わない。純粋関数 ＋ モジュール構成**（[[ts-functions-only-no-class]]）。
 - ドメインロジック（採点・集計・復習リストの判定）は副作用のない純粋関数に寄せ、I/O は境界へ。
-  - 特に **採点ロジックは純粋関数 ＋ サーバー実行**（テストしやすく、不正に強い）。
+  - 特に **採点ロジックは純粋関数 ＋ サーバー実行**（テストしやすく、正誤の単一の真実）。「不正に強い」は動機ではない＝ランキング無し（[ADR-0010](adr/0010-server-side-grading-rationale.md)）。
 - 型は厳密（`strict`）。Zod スキーマから型を導出。
 - テスト: Vitest（採点・集計など純粋関数を重点）。**実行は vite-plus の `vp test`**（同梱 vitest・[ADR-0009](adr/0009-vite-plus-toolchain.md)）。e2e は `cloudflare-workers-e2e-playwright`。
 

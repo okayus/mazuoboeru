@@ -2,10 +2,12 @@ import type { Context, MiddlewareHandler } from "hono";
 import type { User } from "../db/schema";
 import type { AuthMethod, Env } from "../types";
 import { isCreatorAllowed, parseCreatorAllowlist } from "../domain/creator-allowlist";
+import { apiError } from "../http/errors";
 import { validatePat } from "./pat";
+import type { Scope } from "./scopes";
 import { getSessionUser } from "./session";
 
-type Resolved = { user: User; method: AuthMethod; scopes: string[] };
+type Resolved = { user: User; method: AuthMethod; scopes: Scope[] };
 
 // Resolve the user for a request. A Bearer PAT takes precedence over the session
 // cookie; returns null if unauthenticated. Sessions get full access (scopes = []
@@ -43,7 +45,7 @@ export const requireAuth: MiddlewareHandler<Env> = async (c, next) => {
       user = auth.user;
     }
   }
-  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!user) return c.json(apiError("unauthorized"), 401);
   await next();
 };
 
@@ -58,20 +60,20 @@ export const requireSession: MiddlewareHandler<Env> = async (c, next) => {
       user = auth.user;
     }
   }
-  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!user) return c.json(apiError("unauthorized"), 401);
   if (c.get("authMethod") !== "session") {
-    return c.json({ error: "session_required" }, 403);
+    return c.json(apiError("session_required"), 403);
   }
   await next();
 };
 
 // Require a PAT scope. Sessions (scopes resolved as full access) always pass.
-export function requireScope(scope: string): MiddlewareHandler<Env> {
+export function requireScope(scope: Scope): MiddlewareHandler<Env> {
   return async (c, next) => {
     if (c.get("authMethod") === "pat") {
       const scopes = c.get("scopes") ?? [];
       if (!scopes.includes(scope)) {
-        return c.json({ error: "insufficient_scope", scope }, 403);
+        return c.json(apiError("insufficient_scope", { scope }), 403);
       }
     }
     await next();
@@ -85,7 +87,7 @@ export function requireScope(scope: string): MiddlewareHandler<Env> {
 export const requireCreator: MiddlewareHandler<Env> = async (c, next) => {
   const allowlist = parseCreatorAllowlist(c.env.ALLOWED_CREATORS);
   if (allowlist.size > 0 && !isCreatorAllowed(allowlist, requireUser(c).email)) {
-    return c.json({ error: "not_allowed_creator" }, 403);
+    return c.json(apiError("not_allowed_creator"), 403);
   }
   await next();
 };

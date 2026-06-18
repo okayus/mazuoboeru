@@ -3,13 +3,13 @@ import { db } from "../db/client";
 import { apiToken, user, type User } from "../db/schema";
 import { randomToken, sha256Hex } from "../lib/crypto";
 import { newId } from "../lib/id";
+import { parseStringArray } from "../lib/json";
+import { isScope, SCOPES, type Scope } from "./scopes";
 import type { Bindings } from "../types";
 
 // `mzo_pat_` prefix makes PATs detectable by secret scanners (GitHub push
 // protection) and identifiable in logs (ADR-0001 / data-model.md).
 const PAT_PREFIX = "mzo_pat_";
-// MVP fixed scope set.
-const MVP_SCOPES = ["quiz:read", "quiz:write"] as const;
 const LAST_USED_THROTTLE_MS = 60 * 60 * 1000; // update last_used_at at most hourly
 
 function generatePat(): string {
@@ -26,7 +26,7 @@ export type CreatedToken = {
   id: string;
   name: string;
   token: string; // raw — shown exactly once
-  scopes: string[];
+  scopes: Scope[];
   createdAt: number;
 };
 
@@ -39,7 +39,7 @@ export async function createToken(
   const tokenHash = await hashPat(env, token);
   const id = newId();
   const now = Date.now();
-  const scopes = [...MVP_SCOPES];
+  const scopes: Scope[] = [...SCOPES];
   await db(env).insert(apiToken).values({
     id,
     userId,
@@ -54,7 +54,7 @@ export async function createToken(
 export type TokenSummary = {
   id: string;
   name: string;
-  scopes: string[];
+  scopes: Scope[];
   createdAt: number;
   lastUsedAt: number | null;
   expiresAt: number | null;
@@ -100,7 +100,7 @@ export async function revokeToken(
   return true;
 }
 
-export type PatPrincipal = { user: User; scopes: string[] };
+export type PatPrincipal = { user: User; scopes: Scope[] };
 
 // Validate a Bearer PAT. Returns the principal (user + scopes) or null. Touches
 // last_used_at at most hourly. Used by the auth middleware ahead of the session.
@@ -136,11 +136,7 @@ export async function validatePat(
   return { user: row.user, scopes: parseScopes(t.scopes) };
 }
 
-function parseScopes(json: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [];
-  } catch {
-    return [];
-  }
+// Stored scopes → typed Scope[]; any unknown/legacy scope string is dropped.
+function parseScopes(json: string): Scope[] {
+  return parseStringArray(json).filter(isScope);
 }
