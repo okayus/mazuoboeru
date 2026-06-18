@@ -10,8 +10,8 @@ import {
   recordAnswer,
   userQuestionStats,
 } from "../db/attempt-queries";
-import { isFavorited } from "../db/favorite-queries";
 import { loadPublishedQuiz, type PublicQuiz } from "../db/public-queries";
+import { reviewListIdsAmong } from "../db/review-list-queries";
 import type { Attempt } from "../db/schema";
 import { decideAnswer } from "../domain/attempt-grading";
 import { apiError } from "../http/errors";
@@ -88,17 +88,14 @@ export const attemptsRouter = new Hono<Env>()
     const existing = await findUnfinishedAttempt(c.env, user.id, parsed.data.quizId);
     const att = existing ?? (await createAttempt(c.env, user.id, parsed.data.quizId));
     const answers = await buildAnswerDetails(c.env, att.id, found);
-    const favorited = await isFavorited(c.env, user.id, parsed.data.quizId);
-    const questionStats = await userQuestionStats(
-      c.env,
-      user.id,
-      found.loaded.questions.map((q) => q.id),
-    );
+    const questionIds = found.loaded.questions.map((q) => q.id);
+    const reviewListQuestionIds = await reviewListIdsAmong(c.env, user.id, questionIds);
+    const questionStats = await userQuestionStats(c.env, user.id, questionIds);
     return c.json({
       attempt: attemptJson(att),
       quiz: publicQuizJson(found.loaded, found.authorDisplayName),
       answers,
-      favorited,
+      reviewListQuestionIds,
       questionStats,
     });
   })
@@ -111,17 +108,14 @@ export const attemptsRouter = new Hono<Env>()
     const found = await loadPublishedQuiz(c.env, att.quizId);
     if (!found) return c.json(apiError("quiz_unavailable"), 409);
     const answers = await buildAnswerDetails(c.env, att.id, found);
-    const favorited = await isFavorited(c.env, user.id, att.quizId);
-    const questionStats = await userQuestionStats(
-      c.env,
-      user.id,
-      found.loaded.questions.map((q) => q.id),
-    );
+    const questionIds = found.loaded.questions.map((q) => q.id);
+    const reviewListQuestionIds = await reviewListIdsAmong(c.env, user.id, questionIds);
+    const questionStats = await userQuestionStats(c.env, user.id, questionIds);
     return c.json({
       attempt: attemptJson(att),
       quiz: publicQuizJson(found.loaded, found.authorDisplayName),
       answers,
-      favorited,
+      reviewListQuestionIds,
       questionStats,
     });
   })

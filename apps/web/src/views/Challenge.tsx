@@ -16,7 +16,7 @@ export function Challenge({ quizId }: { quizId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
-  const [favorited, setFavorited] = useState(false);
+  const [reviewSet, setReviewSet] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<Record<string, Stat>>({});
   const [idx, setIdx] = useState(0);
 
@@ -25,7 +25,7 @@ export function Challenge({ quizId }: { quizId: string }) {
       .startAttempt(quizId)
       .then((s) => {
         setState(s);
-        setFavorited(s.favorited);
+        setReviewSet(new Set(s.reviewListQuestionIds));
         setStats(s.questionStats);
         const initial: Record<string, Feedback> = {};
         for (const a of s.answers) {
@@ -63,6 +63,28 @@ export function Challenge({ quizId }: { quizId: string }) {
     });
   }, []);
 
+  // Toggle this question's Review List membership (optimistic; reverts on failure).
+  // Like onAnswered, declared before the early returns (stable hook order — React #310).
+  const onToggleReviewList = useCallback(async (questionId: string, currentlyIn: boolean) => {
+    setReviewSet((prev) => {
+      const next = new Set(prev);
+      if (currentlyIn) next.delete(questionId);
+      else next.add(questionId);
+      return next;
+    });
+    try {
+      if (currentlyIn) await api.removeFromReviewList(questionId);
+      else await api.addToReviewList(questionId);
+    } catch {
+      setReviewSet((prev) => {
+        const next = new Set(prev);
+        if (currentlyIn) next.add(questionId);
+        else next.delete(questionId);
+        return next;
+      });
+    }
+  }, []);
+
   if (needLogin)
     return (
       <p>
@@ -79,17 +101,6 @@ export function Challenge({ quizId }: { quizId: string }) {
   const allDone = answeredCount >= total;
   const current = questions[idx];
 
-  const toggleFavorite = async () => {
-    try {
-      const r = favorited
-        ? await api.removeFavorite(state.quiz.id)
-        : await api.addFavorite(state.quiz.id);
-      setFavorited(r.favorited);
-    } catch {
-      // non-fatal; leave the toggle as-is
-    }
-  };
-
   return (
     <div>
       <h2>{state.quiz.title}</h2>
@@ -97,9 +108,6 @@ export function Challenge({ quizId }: { quizId: string }) {
       {state.quiz.description ? <QuizMarkdown>{state.quiz.description}</QuizMarkdown> : null}
 
       <div className="quiz-actions">
-        <button className="link" onClick={toggleFavorite}>
-          {favorited ? "★ my hot 登録済み" : "☆ my hot に登録"}
-        </button>
         <ReportButton targetType="quiz" targetId={state.quiz.id} label="このクイズを通報" />
       </div>
 
@@ -116,7 +124,9 @@ export function Challenge({ quizId }: { quizId: string }) {
           attemptId={state.attempt.id}
           feedback={feedback[current.id]}
           stat={stats[current.id]}
+          inReviewList={reviewSet.has(current.id)}
           onAnswered={onAnswered}
+          onToggleReviewList={onToggleReviewList}
         />
       ) : null}
 
@@ -146,9 +156,11 @@ const QuestionCard = memo(function QuestionCard(props: {
   attemptId: string;
   feedback: Feedback | undefined;
   stat: Stat | undefined;
+  inReviewList: boolean;
   onAnswered: (questionId: string, fb: Feedback) => void;
+  onToggleReviewList: (questionId: string, currentlyIn: boolean) => void;
 }) {
-  const { question, attemptId, feedback, stat } = props;
+  const { question, attemptId, feedback, stat, inReviewList } = props;
   const [selected, setSelected] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +208,12 @@ const QuestionCard = memo(function QuestionCard(props: {
         <strong>Q{props.index + 1}</strong>
         <span className="badge">{isMulti ? "複数選択" : "単一選択"}</span>
         {locked ? <span className="badge">{feedback.isCorrect ? "正解" : "不正解"}</span> : null}
+        <button
+          className="link review-toggle"
+          onClick={() => props.onToggleReviewList(question.id, inReviewList)}
+        >
+          {inReviewList ? "★ 復習リスト" : "☆ 復習リストに追加"}
+        </button>
       </div>
       <div className="meta">あなたのこの設問の通算正答率: {statText}</div>
       <QuizMarkdown>{question.prompt}</QuizMarkdown>

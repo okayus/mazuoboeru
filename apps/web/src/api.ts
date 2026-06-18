@@ -39,6 +39,8 @@ export type CreatedToken = Ok<typeof client.api.tokens.$post>["token"];
 export type Dashboard = Ok<typeof client.api.dashboard.$get>;
 export type TagAccuracy = Dashboard["tags"][number];
 
+export type ReviewListItem = Ok<(typeof client.api)["review-list"]["$get"]>["items"][number];
+
 // ---- Request inputs (hand-written; these are what the client SENDS) ----
 export type QuestionType = "mcq_single" | "mcq_multi";
 export type ChoiceInput = { text: string; isCorrect: boolean };
@@ -145,13 +147,15 @@ export const api = {
 
   dashboard: () => request<Ok<typeof client.api.dashboard.$get>>("/dashboard"),
 
-  favorites: () => request<Ok<typeof client.api.favorites.$get>>("/favorites"),
-  addFavorite: (quizId: string) =>
-    request<Ok<(typeof client.api.favorites)[":quizId"]["$post"]>>(`/favorites/${quizId}`, {
-      method: "POST",
-    }),
-  removeFavorite: (quizId: string) =>
-    request<Ok<(typeof client.api.favorites)[":quizId"]["$delete"]>>(`/favorites/${quizId}`, {
-      method: "DELETE",
-    }),
+  reviewList: () => request<Ok<(typeof client.api)["review-list"]["$get"]>>("/review-list"),
+  addToReviewList: (questionId: string) =>
+    request<Ok<(typeof client.api)["review-list"][":questionId"]["$post"]>>(
+      `/review-list/${questionId}`,
+      { method: "POST" },
+    ),
+  removeFromReviewList: (questionId: string) =>
+    request<Ok<(typeof client.api)["review-list"][":questionId"]["$delete"]>>(
+      `/review-list/${questionId}`,
+      { method: "DELETE" },
+    ),
 };
