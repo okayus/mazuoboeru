@@ -57,7 +57,8 @@
 - **git: コンテナ内は `claude/*` ブランチへの commit まで、push/PR はホスト側リレーが自動代行**（GitHub App・systemd timer 60秒間隔。ADR-0003）。`claude/*` 外・force push はリレーが拒否、main は ruleset でも保護（PR + CI green のみ）。`git push` はコンテナで deny。リレー本体はリポ外 `~/.config/mazuoboeru-relay/`（サンドボックスから改変不能）、ログは `journalctl --user -u mazuoboeru-relay.service`。
   - コンテナ内から PR・CI の状態を見るには **未認証 REST を `curl -s https://api.github.com/...` で叩く**（public リポなので読み取りは認証不要・60 req/h で足りる。例: `repos/okayus/mazuoboeru/commits/<branch>/check-runs`）。`gh` は未認証では動かないので使わない。この curl 形式は allowlist 済み、宛先の強制は egress firewall が担う。
   - **merge も依頼できる**（2026-06-12、ADR-0003 改訂）: 仕事が完成したら**最終 commit のメッセージ末尾に `Relay-Merge: yes` トレーラー**を付ける → リレーが CI green 後に squash merge し、remote/local ブランチも削除する。トレーラーは **HEAD commit のみ有効**（後から commit を積んだら出し直す）。CI green の強制は ruleset がサーバー側で担うので、CI 完了前に付けても安全（merge が次の tick に延びるだけ）。**迷う変更・影響の大きい変更には付けない**＝従来どおり人間の merge に委ねる。
-- 採点・正誤判定は**必ずサーバー側**で（クライアントに正解を渡してから採点しない＝カンニング/不正防止）。
+- 採点・正誤判定は**必ずサーバー側**で。根拠は **正誤の単一の真実・解説は回答後に開示（即時フィードバック）・読みモデルの分離**であって**競争的 anti-cheat ではない**（ランキング/公開スコアが無いので「カンニング/不正防止」は動機にしない＝[ADR-0010](docs/adr/0010-server-side-grading-rationale.md)）。
+- API ルートは Hono RPC のため**メソッドチェーンで定義**する（`new Hono<Env>().get(...).post(...)`／分離文だと型が route に乗らず `hc<AppType>` 推論が壊れる）。クライアント（`apps/web/src/api.ts`）は応答 DTO を `hc<AppType>`＋`InferResponseType` で**サーバから導出**し二重定義しない。エラーは `worker/http/errors.ts` の `ApiErrorCode` union＋`apiError()` で返す（[ADR-0011](docs/adr/0011-hono-rpc-typed-contract.md)）。
 - 他ユーザーのクイズ表示は**サニタイズ必須**: react-markdown ＋ rehype-sanitize で AST 描画し、生 HTML は描画しない（`dangerouslySetInnerHTML`・`rehype-raw` は使わない。`docs/adr/0004-ugc-markdown-rendering.md`）。画像・mermaid は MVP では描画しない。
 - Claude Code 自体の機能・設定で不明な点は https://code.claude.com/docs/llms.txt を WebFetch して確認する。
 

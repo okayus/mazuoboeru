@@ -117,7 +117,7 @@ user 1───* report          (通報)
 ### attempt（挑戦）／ attempt_answer（各回答）
 - attempt: `id` / `user_id` / `quiz_id` / `started_at` / `finished_at?` / `score` / `total`。**非公開**。
 - attempt_answer: `id` / `attempt_id` / `question_id` / `response`(JSON) / `is_correct` / `answered_at`。採点はサーバー側で確定。
-- **invariant**: `attempt_answer.is_correct` は **書き込み後に変更しない**。クイズ編集（重大変更を含む）でも触らない（履歴の改変は不正と見なす、[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）。
+- **invariant**: `attempt_answer.is_correct` は **書き込み後に変更しない**。クイズ編集（重大変更を含む）でも触らない（根拠は**履歴の自立性**＝回答時点の事実を保存し後の編集に影響されないため。不正防止ではない＝[ADR-0010](adr/0010-server-side-grading-rationale.md)。[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）。
 
 ### review_list（復習リスト / "my hot list"・[[CONTEXT.md]] Review List）
 | カラム | 型 | 備考 |

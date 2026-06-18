@@ -1,3 +1,4 @@
+import type { Scope } from "./auth/scopes";
 import type { User } from "./db/schema";
 
 export type Bindings = {
@@ -32,7 +33,7 @@ export type AuthMethod = "session" | "pat";
 export type Variables = {
   user?: User;
   authMethod?: AuthMethod;
-  scopes?: string[];
+  scopes?: Scope[];
 };
 
 // The shape every Hono instance/handler in this worker is typed against.

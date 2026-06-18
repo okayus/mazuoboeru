@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "hono";
+import { apiError } from "../http/errors";
 import type { Env } from "../types";
 
 // CSRF defense layer 2 (SameSite=Lax is layer 1): on state-changing methods,
@@ -13,7 +14,7 @@ export const csrf: MiddlewareHandler<Env> = async (c, next) => {
     if (!isBearer) {
       const origin = c.req.header("Origin");
       if (!origin || origin !== c.env.ORIGIN) {
-        return c.json({ error: "csrf_origin_mismatch" }, 403);
+        return c.json(apiError("csrf_origin_mismatch"), 403);
       }
     }
   }
