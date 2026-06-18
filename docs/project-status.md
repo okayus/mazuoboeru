@@ -7,7 +7,7 @@
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
-> **最終更新: 2026-06-17**（更新したら日付と §「いま動いているもの」を直す）
+> **最終更新: 2026-06-18**（更新したら日付と §「いま動いているもの」を直す）
 
 ---
 
@@ -38,7 +38,7 @@
 | **通報チャネル（B1）** | ✅ **稼働（migration も自動適用済み）** | #32 merge＋Workers Builds success。`POST /api/reports` は Origin 無し→403 / 未ログイン→401（結線確認）。**本番 D1 に `report` テーブル実在を確認**（host `wrangler d1 execute --remote "SELECT name FROM sqlite_master ... name='report'"` → report）。**migration は Workers Builds が自動適用**（deploy command = `d1 migrations apply --remote && wrangler deploy`）＝人手不要 |
 | **PAT 経由のクイズ作成（量産導線・B3）** | ✅ **本番実証** | `mzo create` が本番 D1 に draft 生成→作者 API で round-trip 一致（status=draft）→public GET 404（非公開）→soft-delete 動作（#38・実 PAT）。CSRF は Bearer exempt で PAT は Origin 不要 |
 | **作成者ゲート（allowlist・ドッグフーディング）** | ✅ **稼働（ゲート ON）** | #41 merge＋Workers Builds success（main `394b06a`）。`ALLOWED_CREATORS` secret 投入済み→**作者がブラウザでクイズ作成成功**（許可側は通る）。非許可は `403 not_allowed_creator`（観測には第2アカウント要）。`wrangler secret delete ALLOWED_CREATORS` で開放に戻せる。一般公開時は外して投稿 per-user レート制限へ |
-| **タグ＋タクソノミ（#44/#45・Phase 2）** | ✅ **稼働** | 公開クイズに `tags`、`?tag=` で**上位タグ検索＝下位閉包で一致**＋related ドリルチップ。`tag_edge`（上位下位 DAG）は運用者 curate（DB/CLI）。Workers Builds success＝0003/0004 適用済み（実効タグは derive＝[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)） |
+| **タグ＋タクソノミ（#44/#45・Phase 2）** | ✅ **稼働（3クイズにタグ付与済み）** | 公開クイズに `tags`（Docker ／ Docker,security ／ Protocol,Web を実機確認）、`?tag=Docker`→2件・`?tag=Web`→1件＝**タグ検索が実データで動作**。**上位下位エッジ（`tag_edge`）はホスト側 `wrangler` で投入予定＝未投入のため現状 related 空・実効タグ＝authored**（投入後に下位閉包/巻き上げが効く）。WB success＝0003/0004 適用済み（[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)） |
 | **学習ダッシュボード（#46・Phase 2）** | ✅ **稼働** | `GET /api/dashboard`（session 限定・未認証 **401** 実機確認）。全体／実効タグ別正答率＋ストリーク。私的・per-answer・活動量（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)） |
 | **Favorite / my hot（#47・Phase 2）** | ✅ **稼働** | `GET /api/favorites` **401**・`POST` は Origin 無し **403**（実機確認）。Workers Builds success＝0005 favorite 適用済み |
 | **挑戦フロー再設計（#48・Phase 2）** | ✅ **稼働** | 1画面1問＋設問別の本人正答率（私的）。**e2e 6/6 緑**で再設計 golden-path をコンテナ内 Chromium 実機通過 |
@@ -91,7 +91,7 @@
 - ⏳ 残り: **投稿の per-user レート制限のみ**（§B。一般公開前で足りる）。当面の単一ユーザ運用は**作成者 allowlist ゲート**（`ALLOWED_CREATORS`・§B）で代替（#41・本番 ON 済み）。
 
 ### Phase 2 — 発見と振り返り
-- ✅ **タグ＋上位下位タクソノミ（#44/#45・本番）**: タグ付け・タグ絞り込み（広いタグで下位も一致）・ドリルチップ。`tag`/`quiz_tags`/`tag_edge` 実装。**残: 人気/ランキング・作者ページ**。
+- ✅ **タグ＋上位下位タクソノミ（#44/#45・本番）**: タグ付け・タグ絞り込み（広いタグで下位も一致）・ドリルチップ。`tag`/`quiz_tags`/`tag_edge` 実装。**3クイズにタグ付与済み**・タグ検索は実データで動作。**上位下位エッジはホスト側 `wrangler` で投入予定**（未投入＝巻き上げ未発現）。**残: 人気/ランキング・作者ページ**。
 - ✅ **学習ダッシュボード（#46・本番）**: 全体・実効タグ別正答率・ストリーク（私的・per-answer＝[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)）。
 - ✅ **お気に入り／挑戦フロー再設計（#47/#48・本番）**: Favorite「my hot」＋ 1画面1問・設問別の本人正答率。
 - 追加設問形式 **`boolean` → `short` → `cloze`** の順（`short` で正規化方針＋`question.answer` 列が要る）。
