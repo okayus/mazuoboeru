@@ -19,6 +19,7 @@
 - **Phase 2「発見と振り返り」実装・本番反映済み（2026-06-17・実機確認）**: タグ＋上位下位タクソノミ（広いタグ検索で下位も一致・ドリルチップ）／学習ダッシュボード（全体・実効タグ別正答率・ストリーク）／Favorite「my hot」／挑戦フロー再設計（1画面1問・設問別の本人正答率）。PR #44–#48・各 Workers Builds success（migration 0003–0005 自動適用を確認）。設計は [ADR-0006](adr/0006-dashboard-aggregation-semantics.md)/[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)。残: 人気/ランキング・作者ページ・追加設問形式・Passkey・通報の Discord 通知・CLI npm 配信。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
 - **直近の前進**（2026-06-15〜16）: **B1 通報チャネルを merge・本番稼働**（#32。`0002_report.sql` は **Workers Builds が自動適用**＝人手 migrate 不要、`report` テーブル実在を確認）。**D1 マイグレーションは自動適用**という事実を正典化（#35。旧「人手で当てる」は誤りだった＝§ハマりどころ）。**コミット時に本番状態の断定を検証する verify-prod-claims フックを追加**（#36、§開発の進め方）。**B3 cli を merge・本番デプロイ・本番実証**（#38。`apps/cli`＝PAT でクイズ作成/公開する薄い CLI `mzo`。あわせて **host/sandbox/CI を node24 に統一し `.ts` をビルド無しネイティブ実行**＝ADR-0005。本番で実 PAT による create→作者 API で内容一致→非公開確認→ソフト削除まで実機確認）。**A4 e2e は完了・本番反映済み**（**PR #39 merge＝main `012cfaf`・Workers Builds デプロイ success**。コンテナ内 `pnpm e2e` 6/6 緑。本番コードに認証バイパスを足さず session seam＋ビルド成果物を `wrangler dev` で駆動。`.docker/Dockerfile` の `INSTALL_PLAYWRIGHT=true` で Chromium をビルド時に焼き込み＝コンテナ完結／runtime egress ゼロ。**この e2e が挑戦ビューの本番バグ＝React #310 hooks 違反を検出・修正**＝本番バンドルも修正後 `index-91zgNzP4.js` に更新済み）。**ドッグフーディング作成者ゲート（allowlist）を実装・merge・本番デプロイ・本番でゲート ON 実証**（#41＝main `394b06a`。`ALLOWED_CREATORS` secret 投入済み＝列挙メールのアカウントのみ作成/公開可。作者のブラウザ作成成功を確認＝自己ロックアウト無し）。**残りの Phase 1 は投稿 per-user レート制限のみ**（一般公開前で足り、当面は allowlist で代替）。
+- **次の実装の設計確定（2026-06-18 grill）**: Phase 3「定着」を **Review List（設問単位の手動復習プール＝旧 favorite 置換）＋ドリル**として設計確定（SM-2 在庫スケジューラは持たない・再出題の間隔は将来の通知へ／[ADR-0008](adr/0008-review-list-manual-pool.md)・[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記・[CONTEXT.md](../CONTEXT.md) の Review List/Drill）。**実装は別セッション**（本セッションは設計＋ドキュメントのみ）。ツールチェインは **vite-plus を本採用**（[ADR-0009](adr/0009-vite-plus-toolchain.md)）＝導入済み・**テストを `vp test` に一本化**（vitest 単一化・apps/web 54/apps/cli 26 緑）。lint/fmt スクリプト・CI 配線と dev/build（Rolldown）移行は実装セッション（dev/build は `@cloudflare/vite-plugin`＋wrangler v4 と連動）。
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
@@ -72,7 +73,7 @@
 
 ### C. その先（Phase 2 以降の入口）
 
-検索・タグ、学習ダッシュボード、追加設問形式（`boolean`→`short`→`cloze`）、Passkey、通報の Discord/メール通知、SRS（Phase 3）、モデレーション管理画面（Phase 4）。詳細と順序は下記 §「ロードマップ（フェーズ計画）」。
+検索・タグ、学習ダッシュボード、追加設問形式（`boolean`→`short`→`cloze`）、Passkey、通報の Discord/メール通知、復習（Review List・Phase 3）、モデレーション管理画面（Phase 4）。詳細と順序は下記 §「ロードマップ（フェーズ計画）」。
 
 > **実スキーマ変更時は必ず** スキル `cloudflare-d1-drizzle-migration` を読む（constraint 変更/table rebuild は FK OFF のカスケード削除トラップ＋要バックアップ。列追加は安全）。
 
@@ -80,7 +81,7 @@
 
 ## ロードマップ（フェーズ計画）
 
-> 旧 `docs/roadmap.md` を統合（2026-06-16）。**near-term の残作業は §「ここから必要なもの」**、**確定済みの既定は [CLAUDE.md](../CLAUDE.md) §確定済み**、**後戻りしにくい決定の理由は [docs/adr/](adr/)** が正典。ここはフェーズの順序と長期の見取り図に徹する。方針: 「動くものを早く」→「共有プールが回る」→「定着（SRS）」→「安全・健全に保つ」。
+> 旧 `docs/roadmap.md` を統合（2026-06-16）。**near-term の残作業は §「ここから必要なもの」**、**確定済みの既定は [CLAUDE.md](../CLAUDE.md) §確定済み**、**後戻りしにくい決定の理由は [docs/adr/](adr/)** が正典。ここはフェーズの順序と長期の見取り図に徹する。方針: 「動くものを早く」→「共有プールが回る」→「定着（復習）」→「安全・健全に保つ」。
 
 ### Phase 0 — スキャフォールド ✅ 完了
 開発コンテナ（host 5373）／pnpm workspaces（`apps/web` に SPA＋Worker＋wrangler.jsonc 同梱）／歩く骨格を本番 `/health` 200 まで／Workers Builds キーレスデプロイ／D1 スキーマ＋マイグレーション。詳細 [dev-environment.md](dev-environment.md)・[ADR-0003](adr/0003-secrets-strategy.md)。
@@ -99,8 +100,8 @@
 - 通報の Discord/メール通知（スキル `cloudflare-cron-to-discord`）。
 - CLI の npm 配信（`esbuild` バンドル → `npx @mazuoboeru/cli`）。
 
-### Phase 3 — 定着（SRS）
-間隔反復の復習キュー（**`review_state` 未実装**）、自己評価で間隔調整、「今日の復習」、タグ別習熟度。
+### Phase 3 — 定着（復習 / Review List）
+**設計を更新（2026-06-18 grill・[ADR-0008](adr/0008-review-list-manual-pool.md)）**: アルゴリズム的 SRS（SM-2・`review_state`・「今日の復習」due キュー）は**作らない**。代わりに **Review List**（UI "my hot list"・**設問単位**の手動プール・旧 favorite を置換）＋**ドリル**（1問ずつ再回答＋即時フィードバック・「覚えた＝外す／まだ＝残す」）。ドリル回答（`review_answer`）はストリーク・活動量に算入（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記）。**再出題の間隔（スペーシング）は将来の通知機能へ後ろ倒し**。新テーブル `review_list`(user_id, question_id) / `review_answer`。タグ別習熟度は後続。**実装は別セッション**（本セッションは設計＋ドキュメントのみ）。**ツールチェインは vite-plus 本採用**（[ADR-0009](adr/0009-vite-plus-toolchain.md)）＝導入済み・test は `vp test` 一本化済み、lint/fmt スクリプト・CI 配線は実装セッション。
 
 ### Phase 4 — 健全な運営・拡張
 モデレーション管理画面（`/admin/*` を **Cloudflare Access** で IdP ゲート）／自動スパム検知・監査ログ／D1 週次バックアップ（スキル `cloudflare-d1-weekly-backup-via-pr`）／集計のキャッシュ・事前集計（`quiz_stats`）／ハード削除＋データエクスポート・アカウント削除（GDPR）／編集履歴 `quiz_revision`＋`attempt.quiz_title_snapshot` で履歴の自立性確保／コメント（モデレーション前提）・PWA。
