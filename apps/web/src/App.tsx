@@ -5,8 +5,8 @@ import { Challenge } from "./views/Challenge";
 import { CreateQuiz } from "./views/CreateQuiz";
 import { Dashboard } from "./views/Dashboard";
 import { Login } from "./views/Login";
-import { MyHot } from "./views/MyHot";
 import { MyQuizzes } from "./views/MyQuizzes";
+import { ReviewList } from "./views/ReviewList";
 import { Settings } from "./views/Settings";
 import { Timeline } from "./views/Timeline";
 
@@ -35,7 +35,7 @@ export function App() {
           <a href="#/">タイムライン</a>
           {user ? <a href="#/mine">マイクイズ</a> : null}
           {user ? <a href="#/dashboard">ダッシュボード</a> : null}
-          {user ? <a href="#/favorites">my hot</a> : null}
+          {user ? <a href="#/review-list">my hot list</a> : null}
           {user ? <a href="#/create">作る</a> : null}
           {user ? <a href="#/settings">PAT</a> : null}
           {!loaded ? null : user ? (
@@ -67,8 +67,8 @@ function View({ route }: { route: Route }) {
       return <MyQuizzes />;
     case "dashboard":
       return <Dashboard />;
-    case "favorites":
-      return <MyHot />;
+    case "reviewList":
+      return <ReviewList />;
     case "challenge":
       return <Challenge quizId={route.quizId} />;
     case "settings":

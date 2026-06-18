@@ -286,23 +286,25 @@ export const tagEdge = sqliteTable(
   ],
 );
 
-// A user's private collection of published quizzes to revisit ("my hot" — CONTEXT.md
-// Favorite). user_id CASCADEs (user-owned); quiz_id is NO ACTION (cross-aggregate, the
-// my-hot list filters published). created_at orders the list (most recent first).
-export const favorite = sqliteTable(
-  "favorite",
+// A user's private, question-level Review List — the manual pool of questions to
+// revisit (UI label "my hot list" — CONTEXT.md Review List; replaces the quiz-level
+// favorite, ADR-0008). user_id CASCADEs (user-owned); question_id CASCADEs (part of
+// the quiz aggregate, fires only on a Phase 4 hard delete — soft-deleted / unpublished
+// quizzes are filtered at read time). created_at orders the list (most recent first).
+export const reviewList = sqliteTable(
+  "review_list",
   {
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    quizId: text("quiz_id")
+    questionId: text("question_id")
       .notNull()
-      .references(() => quiz.id),
+      .references(() => question.id, { onDelete: "cascade" }),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.userId, t.quizId] }),
-    index("idx_favorite_user").on(t.userId, t.createdAt),
+    primaryKey({ columns: [t.userId, t.questionId] }),
+    index("idx_review_list_user").on(t.userId, t.createdAt),
   ],
 );
 
@@ -319,4 +321,4 @@ export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
 export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
 export type TagEdge = typeof tagEdge.$inferSelect;
-export type Favorite = typeof favorite.$inferSelect;
+export type ReviewListRow = typeof reviewList.$inferSelect;
