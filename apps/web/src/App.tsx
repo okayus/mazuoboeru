@@ -4,6 +4,7 @@ import { navigate, type Route, useRoute } from "./useRoute";
 import { Challenge } from "./views/Challenge";
 import { CreateQuiz } from "./views/CreateQuiz";
 import { Dashboard } from "./views/Dashboard";
+import { Drill } from "./views/Drill";
 import { Login } from "./views/Login";
 import { MyQuizzes } from "./views/MyQuizzes";
 import { ReviewList } from "./views/ReviewList";
@@ -69,6 +70,8 @@ function View({ route }: { route: Route }) {
       return <Dashboard />;
     case "reviewList":
       return <ReviewList />;
+    case "drill":
+      return <Drill />;
     case "challenge":
       return <Challenge quizId={route.quizId} />;
     case "settings":

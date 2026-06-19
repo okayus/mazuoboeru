@@ -42,6 +42,11 @@ export function ReviewList() {
   return (
     <div>
       <h2>my hot list（復習リスト）</h2>
+      {items.length > 0 ? (
+        <p className="quiz-actions">
+          <a href="#/drill">▶ ドリルを始める</a>（{items.length} 問を1問ずつ解き直す）
+        </p>
+      ) : null}
       {items.length === 0 ? (
         <p>
           まだ設問がありません。挑戦画面で各設問の「☆ 復習リストに追加」から、覚え直したい設問を入れられます。

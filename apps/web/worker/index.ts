@@ -6,6 +6,7 @@ import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
 import { attemptsRouter } from "./routes/attempts";
 import { dashboardRouter } from "./routes/dashboard";
+import { drillRouter } from "./routes/drill";
 import { publicRouter } from "./routes/public";
 import { quizzesRouter } from "./routes/quizzes";
 import { reportsRouter } from "./routes/reports";
@@ -46,7 +47,9 @@ const api = new Hono<Env>()
   // Private learning dashboard (session-only): accuracy / streak / per-tag (ADR-0006).
   .route("/dashboard", dashboardRouter)
   // Review List / "my hot list" (session-only, private; question-level — ADR-0008).
-  .route("/review-list", reviewListRouter);
+  .route("/review-list", reviewListRouter)
+  // Drill over the Review List pool (session-only, private; stateless — ADR-0008).
+  .route("/drill", drillRouter);
 
 const app = new Hono<Env>()
   // Global: security headers on every response, CSRF Origin check on mutations.

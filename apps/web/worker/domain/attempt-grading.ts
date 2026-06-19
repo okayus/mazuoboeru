@@ -2,17 +2,16 @@
 // the published quiz + prior answers, calls this to decide accept/reject + grade +
 // finalize, then performs the writes. Extracted from routes/attempts.ts so the
 // wiring (choice-belongs-to-question, already-answered idempotency, finalize-when-
-// complete, score aggregation) is unit-testable. The same path is reused by the
-// Phase 3 Drill (ADR-0008), so its correctness is the feedback's correctness
-// (ADR-0010: grading is server-authoritative for single-source-of-truth + immediate
-// feedback, not competitive anti-cheat).
+// complete, score aggregation) is unit-testable. The validate-and-grade core lives in
+// gradeQuestion (./grading) and is shared with the Phase 3 Drill (ADR-0008) — so grading
+// correctness is single-sourced (ADR-0010: server-authoritative for single-source-of-truth
+// + immediate feedback, not competitive anti-cheat).
 
-import { gradeSelection } from "./grading";
+import { gradeQuestion, type GradedQuestion } from "./grading";
 
-export type GradedQuestion = {
-  id: string;
-  choices: ReadonlyArray<{ id: string; isCorrect: boolean }>;
-};
+// Re-exported so existing importers (routes/attempts.ts, attempt-grading.test.ts) keep
+// resolving GradedQuestion from here too.
+export type { GradedQuestion };
 
 export type AnswerInput = {
   // The question being answered, resolved from the quiz — undefined if the submitted
@@ -44,28 +43,32 @@ export type AnswerDecision =
 export function decideAnswer(input: AnswerInput): AnswerDecision {
   const { question, selectedChoiceIds, prior, totalQuestions } = input;
 
-  if (!question) return { kind: "unknown_question" };
+  // Shared core: validate the selection + grade it (single source of correctness — the same
+  // call the Drill path uses; ADR-0010). unknown_question / invalid_choice pass straight
+  // through.
+  const graded = gradeQuestion(question, selectedChoiceIds);
+  if (graded.kind !== "graded") return graded;
 
-  // Every selected id must belong to this question.
-  const validIds = new Set(question.choices.map((ch) => ch.id));
-  if (selectedChoiceIds.some((id) => !validIds.has(id))) {
-    return { kind: "invalid_choice" };
-  }
-
-  // One graded submission per question per attempt (idempotency guard).
-  if (prior.some((a) => a.questionId === question.id)) {
+  // Attempt-only bookkeeping below (the Drill path skips all of this — it is stateless,
+  // append-only; ADR-0008). One graded submission per question per attempt (idempotency
+  // guard). `question` is defined whenever grading succeeded; the guard also narrows the type.
+  if (question && prior.some((a) => a.questionId === question.id)) {
     return { kind: "already_answered" };
   }
-
-  const correctChoiceIds = question.choices.filter((ch) => ch.isCorrect).map((ch) => ch.id);
-  const isCorrect = gradeSelection(correctChoiceIds, selectedChoiceIds);
 
   // Finalize once every question has an answer; score is computed only then.
   const answeredCount = prior.length + 1;
   const finished = answeredCount >= totalQuestions;
   const score = finished
-    ? prior.filter((a) => a.isCorrect).length + (isCorrect ? 1 : 0)
+    ? prior.filter((a) => a.isCorrect).length + (graded.isCorrect ? 1 : 0)
     : null;
 
-  return { kind: "accepted", isCorrect, correctChoiceIds, finished, score, total: totalQuestions };
+  return {
+    kind: "accepted",
+    isCorrect: graded.isCorrect,
+    correctChoiceIds: graded.correctChoiceIds,
+    finished,
+    score,
+    total: totalQuestions,
+  };
 }
