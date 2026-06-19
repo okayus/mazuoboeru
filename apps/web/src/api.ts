@@ -41,6 +41,9 @@ export type TagAccuracy = Dashboard["tags"][number];
 
 export type ReviewListItem = Ok<(typeof client.api)["review-list"]["$get"]>["items"][number];
 
+export type DrillPool = Ok<typeof client.api.drill.$get>;
+export type DrillItem = DrillPool["items"][number];
+
 // ---- Request inputs (hand-written; these are what the client SENDS) ----
 export type QuestionType = "mcq_single" | "mcq_multi";
 export type ChoiceInput = { text: string; isCorrect: boolean };
@@ -158,4 +161,11 @@ export const api = {
       `/review-list/${questionId}`,
       { method: "DELETE" },
     ),
+
+  drill: () => request<Ok<typeof client.api.drill.$get>>("/drill"),
+  submitDrillAnswer: (questionId: string, choiceIds: string[]) =>
+    request<Ok<typeof client.api.drill.answers.$post>>("/drill/answers", {
+      method: "POST",
+      body: JSON.stringify({ questionId, choiceIds }),
+    }),
 };

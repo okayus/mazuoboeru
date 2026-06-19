@@ -18,3 +18,38 @@ export function gradeSelection(
   }
   return true;
 }
+
+// A question with its choices' correctness — the minimal input the grader needs. Shared by
+// the attempt path (decideAnswer wraps this with attempt bookkeeping) and the Drill path
+// (which calls gradeQuestion directly — no attempt, ADR-0008). This is the single place
+// "is this selection valid, and is it correct?" is decided (server-authoritative — ADR-0010).
+export type GradedQuestion = {
+  id: string;
+  choices: ReadonlyArray<{ id: string; isCorrect: boolean }>;
+};
+
+// Validate a selection against a question, then grade it. Pure. `unknown_question` when the
+// question wasn't resolved (e.g. not part of a published quiz — the boundary decides that),
+// `invalid_choice` when a selected id doesn't belong to the question, else `graded` with the
+// boolean result + the correct ids (revealed only after grading).
+export type QuestionGrade =
+  | { kind: "unknown_question" }
+  | { kind: "invalid_choice" }
+  | { kind: "graded"; isCorrect: boolean; correctChoiceIds: string[] };
+
+export function gradeQuestion(
+  question: GradedQuestion | undefined,
+  selectedChoiceIds: readonly string[],
+): QuestionGrade {
+  if (!question) return { kind: "unknown_question" };
+  const validIds = new Set(question.choices.map((ch) => ch.id));
+  if (selectedChoiceIds.some((id) => !validIds.has(id))) {
+    return { kind: "invalid_choice" };
+  }
+  const correctChoiceIds = question.choices.filter((ch) => ch.isCorrect).map((ch) => ch.id);
+  return {
+    kind: "graded",
+    isCorrect: gradeSelection(correctChoiceIds, selectedChoiceIds),
+    correctChoiceIds,
+  };
+}

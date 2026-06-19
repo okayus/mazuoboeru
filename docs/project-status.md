@@ -103,7 +103,11 @@
 - CLI の npm 配信（`esbuild` バンドル → `npx @mazuoboeru/cli`）。
 
 ### Phase 3 — 定着（復習 / Review List）
-**設計を更新（2026-06-18 grill・[ADR-0008](adr/0008-review-list-manual-pool.md)）**: アルゴリズム的 SRS（SM-2・`review_state`・「今日の復習」due キュー）は**作らない**。代わりに **Review List**（UI "my hot list"・**設問単位**の手動プール・旧 favorite を置換）＋**ドリル**（1問ずつ再回答＋即時フィードバック・「覚えた＝外す／まだ＝残す」）。ドリル回答（`review_answer`）はストリーク・活動量に算入（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記）。**再出題の間隔（スペーシング）は将来の通知機能へ後ろ倒し**。新テーブル `review_list`(user_id, question_id) / `review_answer`。タグ別習熟度は後続。**実装は別セッション**（本セッションは設計＋ドキュメントのみ）。**ツールチェインは vite-plus 本採用**（[ADR-0009](adr/0009-vite-plus-toolchain.md)）＝導入済み・test は `vp test` 一本化済み、lint/fmt スクリプト・CI 配線は実装セッション。
+**設計（2026-06-18 grill・[ADR-0008](adr/0008-review-list-manual-pool.md)）**: アルゴリズム的 SRS（SM-2・`review_state`・「今日の復習」due キュー）は**作らない**。代わりに **Review List**（UI "my hot list"・**設問単位**の手動プール・旧 favorite を置換）＋**ドリル**（1問ずつ再回答＋即時フィードバック・「覚えた＝外す／まだ＝残す」）。ドリル回答（`review_answer`）はストリーク・活動量に算入（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記）。**再出題の間隔（スペーシング）は将来の通知機能へ後ろ倒し**。タグ別習熟度は後続。実装は**縦切り2スライス**。
+
+- ✅ **Slice 1（Review List・本番反映済み 2026-06-19・#55＝main `ae82f1e`）**: `review_list`(user_id, question_id) 新設＋旧 `favorite` DROP（[ADR-0008](adr/0008-review-list-manual-pool.md)・お試しデータ破棄）。backend `review-list-queries.ts`＋`routes/review-list.ts`（session 限定・公開設問のみ追加可）／frontend `ReviewList` ビュー（フラット・新しい順）＋挑戦カードの「☆ 復習リストに追加」トグル（クイズ単位 favorite トグルは廃止）。実機確認は §「いま本番で動いているもの」。
+- ✅ **Slice 2（Drill・実装完了・ローカル検証済み／本番未反映 2026-06-19）**: grill（2026-06-19）で3点確定＝**取得形=プール一括**（`GET /api/drill` が選択肢つき・`is_correct` 伏せ・公開のみを一括返却、クライアント主導で1問ずつ）／**採点=純関数 `gradeQuestion` を抽出**して Attempt と共有（Drill は **Attempt を作らずステートレス・追記専用** ＝進行状態を持たず離脱したら最初から）／**dashboard 合流=(2) 全指標一律**（`review_answer` を streak・活動量・全体/タグ別/設問別 正答率の**すべて**へ算入＝[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) に 2026-06-19 追記。タグ別は `review_answer`→`question`→`quiz` の read 時 join で quizId 導出、`computeStreak`/`bundleTagAccuracy` は不変のまま attempt facts に concat）。実装: migration `0007_review_answer.sql`（テーブル追加＝rebuild なし）／`db/drill-queries.ts`＋`routes/drill.ts`（GET プール＋POST `/answers`・session 限定・メソッドチェーン）／`userQuestionStats` を attempt∪review_answer に拡張／frontend `views/Drill.tsx`＋ReviewList「▶ ドリルを始める」導線。「覚えた＝外す」は既存 `DELETE /review-list/:id` 再利用・「まだ」は client no-op。**検証: tsc・unit 73（`gradeQuestion` +5）・build（client バンドルへ採点コード非混入を grep 確認）・e2e 6/6（golden-path が refactor 後の `decideAnswer` を通過）・`0007` ローカル適用＋pool/stat/facts の SQL スモーク すべて緑**。**次: commit→`claude/*`→relay PR→merge で本番反映**（Workers Builds が `0007` を自動適用＝§ハマりどころ）。
+- **ツールチェイン**: vite-plus 本採用（[ADR-0009](adr/0009-vite-plus-toolchain.md)）＝導入済み・test は `vp test` 一本化済み。lint/fmt スクリプト・CI 配線・dev/build（Rolldown）移行は**別タスク**（Slice には含めない・`@cloudflare/vite-plugin`＋wrangler v4 連動）。
 
 ### Phase 4 — 健全な運営・拡張
 モデレーション管理画面（`/admin/*` を **Cloudflare Access** で IdP ゲート）／自動スパム検知・監査ログ／D1 週次バックアップ（スキル `cloudflare-d1-weekly-backup-via-pr`）／集計のキャッシュ・事前集計（`quiz_stats`）／ハード削除＋データエクスポート・アカウント削除（GDPR）／編集履歴 `quiz_revision`＋`attempt.quiz_title_snapshot` で履歴の自立性確保／コメント（モデレーション前提）・PWA。
@@ -113,6 +117,7 @@
 - **custom domain** の購入・移行 — ローンチ後。redirect URI を workers.dev と custom で併存させ段階移行（subdomain なし URL は構造上不可＝custom domain が正解）。
 - **CLI の npm 配信** — Phase 2（`esbuild` → `npx`）。
 - **admin UI / 自動アクション**（N 件通報で自動 hidden 等）— Phase 4。
+- **Attempt のステートレス化**（進行状態・再開を廃し、Drill と同様「採点して履歴だけ溜める」へ）— ユーザ意向の将来タスク（2026-06-19 Slice 2 grill で表明、スコープ膨張を避け分離）。CONTEXT.md の [[Attempt]] 定義（未回答から再開）改訂＋未完了 Attempt 保持/再開ロジック撤去＋公開集計（完了 Attempt のみ）への影響を伴う＝着手時に ADR 候補。auto-memory `attempt-to-become-stateless-future`。
 
 ---
 

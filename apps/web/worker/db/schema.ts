@@ -308,6 +308,30 @@ export const reviewList = sqliteTable(
   ],
 );
 
+// A user's Drill answers — the append-only log of re-answering Review List questions
+// (CONTEXT.md Drill; ADR-0008). Unlike attempt_answer there is NO uniqueness guard: every
+// drill of a question is a new row (drill the same question many times), and there is no
+// attempt / score / completion (Drill is stateless — ADR-0008). is_correct is server-graded
+// (gradeQuestion) and frozen. Feeds ALL private-dashboard metrics uniformly — streak /
+// activity / accuracy, per-tag via a question->quiz join at read time (ADR-0006, 2026-06-19).
+// user_id CASCADEs (user-owned); question_id does NOT cascade (history survives question
+// edits, like attempt_answer). idx (user_id, answered_at) drives streak / activity.
+export const reviewAnswer = sqliteTable(
+  "review_answer",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => question.id),
+    isCorrect: integer("is_correct").notNull(), // 0|1, server-graded
+    answeredAt: integer("answered_at").notNull(),
+  },
+  (t) => [index("idx_review_answer_user_answered").on(t.userId, t.answeredAt)],
+);
+
 // Inferred row types for use across the worker (query results / inserts).
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -322,3 +346,4 @@ export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
 export type TagEdge = typeof tagEdge.$inferSelect;
 export type ReviewListRow = typeof reviewList.$inferSelect;
+export type ReviewAnswer = typeof reviewAnswer.$inferSelect;

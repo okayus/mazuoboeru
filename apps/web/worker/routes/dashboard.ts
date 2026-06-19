@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { requireAuth, requireUser } from "../auth/middleware";
-import { authoredTagIdsByQuiz, loadUserAnswerFacts } from "../db/dashboard-queries";
+import {
+  authoredTagIdsByQuiz,
+  loadUserAnswerFacts,
+  loadUserDrillFacts,
+} from "../db/dashboard-queries";
 import { loadTagEdges, tagNameMap } from "../db/tag-queries";
 import { bundleTagAccuracy, computeStreak } from "../domain/dashboard";
 import type { Env } from "../types";
@@ -12,7 +16,14 @@ export const dashboardRouter = new Hono<Env>()
 
   .get("/", async (c) => {
     const user = requireUser(c);
-    const facts = await loadUserAnswerFacts(c.env, user.id);
+    // A drill answer is an answer: review_answer feeds overall / streak / per-tag uniformly
+    // (ADR-0006 2026-06-19). quizzesAttempted stays an Attempt concept (drilling a question
+    // isn't "attempting the quiz"), so it counts attempt facts only — see below.
+    const [attemptFacts, drillFacts] = await Promise.all([
+      loadUserAnswerFacts(c.env, user.id),
+      loadUserDrillFacts(c.env, user.id),
+    ]);
+    const facts = [...attemptFacts, ...drillFacts];
 
     const total = facts.length;
     const correct = facts.filter((f) => f.isCorrect).length;
@@ -41,6 +52,6 @@ export const dashboardRouter = new Hono<Env>()
       streak,
       tags,
       untagged,
-      quizzesAttempted: quizIds.length,
+      quizzesAttempted: new Set(attemptFacts.map((f) => f.quizId)).size,
     });
   });
