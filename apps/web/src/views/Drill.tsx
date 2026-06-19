@@ -1,6 +1,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { api, type DrillItem, isApiError } from "../api";
+import { shuffle } from "../lib/shuffle";
 import { QuizMarkdown } from "../QuizMarkdown";
 
 type Stat = { correct: number; total: number };
@@ -121,6 +122,10 @@ function DrillCard({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Display-only choice shuffle, fresh per presentation. Drill is advance-only and
+  // stateless (no revisit, no resume), so one mount = one card showing = one order;
+  // the next drill session re-fetches the pool and re-rolls. Grading is id-based.
+  const [orderedChoices] = useState(() => shuffle(item.choices));
 
   const isMulti = item.type === "mcq_multi";
   const locked = feedback !== null;
@@ -171,7 +176,7 @@ function DrillCard({
       <QuizMarkdown>{item.prompt}</QuizMarkdown>
 
       <ul className="choices">
-        {item.choices.map((ch) => {
+        {orderedChoices.map((ch) => {
           const chosen = selected.includes(ch.id);
           const correct = locked && feedback.correctChoiceIds.includes(ch.id);
           return (

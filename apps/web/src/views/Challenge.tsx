@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { api, type AttemptState, isApiError, type PublicQuestion } from "../api";
+import { shuffle } from "../lib/shuffle";
 import { QuizMarkdown } from "../QuizMarkdown";
 import { ReportButton } from "./ReportButton";
 
@@ -162,6 +163,10 @@ const QuestionCard = memo(function QuestionCard(props: {
 }) {
   const { question, attemptId, feedback, stat, inReviewList } = props;
   const [selected, setSelected] = useState<string[]>([]);
+  // Display-only choice shuffle, re-rolled per presentation: this card remounts on
+  // nav (←前へ/次へ→) and reload (key={current.id}), so a fresh order each time, including
+  // for already-answered questions. Stable within a mount. Grading is id-based (unaffected).
+  const [orderedChoices] = useState(() => shuffle(question.choices));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,7 +224,7 @@ const QuestionCard = memo(function QuestionCard(props: {
       <QuizMarkdown>{question.prompt}</QuizMarkdown>
 
       <ul className="choices">
-        {question.choices.map((ch) => {
+        {orderedChoices.map((ch) => {
           const chosen = locked ? feedback.selected.includes(ch.id) : selected.includes(ch.id);
           const correct = locked && feedback.correctChoiceIds.includes(ch.id);
           return (
