@@ -8,9 +8,7 @@ describe("validateForPublish", () => {
     expect(
       validateForPublish({
         title: "Capitals",
-        questions: [
-          { type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: false }] },
-        ],
+        questions: [{ type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: false }] }],
       }),
     ).toEqual([]);
   });
@@ -19,9 +17,7 @@ describe("validateForPublish", () => {
     expect(
       codes({
         title: "   ",
-        questions: [
-          { type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: false }] },
-        ],
+        questions: [{ type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: false }] }],
       }),
     ).toContain("title_required");
   });
@@ -42,17 +38,13 @@ describe("validateForPublish", () => {
     expect(
       codes({
         title: "T",
-        questions: [
-          { type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: true }] },
-        ],
+        questions: [{ type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: true }] }],
       }),
     ).toContain("single_needs_exactly_one_correct");
     expect(
       codes({
         title: "T",
-        questions: [
-          { type: "mcq_single", choices: [{ isCorrect: false }, { isCorrect: false }] },
-        ],
+        questions: [{ type: "mcq_single", choices: [{ isCorrect: false }, { isCorrect: false }] }],
       }),
     ).toContain("single_needs_exactly_one_correct");
   });
@@ -61,9 +53,7 @@ describe("validateForPublish", () => {
     expect(
       codes({
         title: "T",
-        questions: [
-          { type: "mcq_multi", choices: [{ isCorrect: false }, { isCorrect: false }] },
-        ],
+        questions: [{ type: "mcq_multi", choices: [{ isCorrect: false }, { isCorrect: false }] }],
       }),
     ).toContain("multi_needs_at_least_one_correct");
     expect(
@@ -88,9 +78,7 @@ describe("validateForPublish", () => {
       ],
     });
     expect(
-      errors.some(
-        (e) => e.code === "single_needs_exactly_one_correct" && e.questionIndex === 1,
-      ),
+      errors.some((e) => e.code === "single_needs_exactly_one_correct" && e.questionIndex === 1),
     ).toBe(true);
   });
 });

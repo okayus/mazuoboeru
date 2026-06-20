@@ -137,9 +137,7 @@ export function Challenge({ quizId }: { quizId: string }) {
             ← 前へ
           </button>
         ) : null}
-        {idx < total - 1 ? (
-          <button onClick={() => setIdx((i) => i + 1)}>次へ →</button>
-        ) : null}
+        {idx < total - 1 ? <button onClick={() => setIdx((i) => i + 1)}>次へ →</button> : null}
       </div>
 
       {allDone ? (

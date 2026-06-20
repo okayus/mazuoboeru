@@ -45,7 +45,8 @@ export function Settings() {
     <div>
       <h2>PAT（API トークン）</h2>
       <p className="meta">
-        CLI / AI エージェントが API を叩くための Bearer トークンです。発行直後の一度だけ表示されます。
+        CLI / AI エージェントが API を叩くための Bearer
+        トークンです。発行直後の一度だけ表示されます。
       </p>
 
       <div className="card">

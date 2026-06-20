@@ -4,11 +4,11 @@ Phase 1 vertical-slice e2e for `@mazuoboeru/web`. Three specs, the scope the e2e
 (`cloudflare-workers-e2e-playwright`) prescribes — e2e covers **wiring**, units cover
 semantics:
 
-| spec | catches |
-| --- | --- |
-| `golden-path.spec.ts` | session-cookie wiring, route→handler→D1→SPA round-trip, page-reload persistence, **cross-account** publish→challenge→**server grading** |
+| spec                             | catches                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `golden-path.spec.ts`            | session-cookie wiring, route→handler→D1→SPA round-trip, page-reload persistence, **cross-account** publish→challenge→**server grading** |
 | `authorization-boundary.spec.ts` | existence-hiding (a draft is 404, not 403, to non-authors and the public), 401 on author-only routes — i.e. Hono middleware mount order |
-| `security-headers.spec.ts` | `app.use("*", securityHeaders)` riding every response (SPA shell, pure Worker route, API error) |
+| `security-headers.spec.ts`       | `app.use("*", securityHeaders)` riding every response (SPA shell, pure Worker route, API error)                                         |
 
 ## Run it
 

@@ -42,3 +42,23 @@
 - dev/build は当面 vanilla Vite 6 + `@cloudflare/vite-plugin` 0.1.x + wrangler 3.x のまま。段2は wrangler v4 移行とセットの別ブランチ（デプロイ＋e2e 検証込み）。
 - `@playwright/test` の exact pin（焼き込み Chromium と一致＝e2e スキル規約）・pnpm の pin は従来どおり（vite-plus とは独立）。
 - lint/fmt のルール・CI 組み込みは実装セッションで確定（本 ADR では「採用」と段階方針のみ）。
+
+## 追記（2026-06-20）— 段2 を実施へ／段1 設定を確定
+
+ツールチェイン整備に着手（status → grill）。grill 中に**段2 の最大の未知＝「`@cloudflare/vite-plugin` が vite-plus（Rolldown-vite）上で動くか」を実測 spike で解消**したため、本 ADR の「段2 は保留・要検証」を**実施へ更新**する。出し方は**逐次2 PR**（PR-A=段1、PR-B=段2）。
+
+### spike 知見（2026-06-20・実測）
+- **`vp build`（Rolldown）は現行 `@cloudflare/vite-plugin@0.1.21` でも二環境ビルド成功・exit 0**（client 287 modules→`dist/client/`、worker 348 modules→`dist/mazuoboeru/{index.js,wrangler.json,.dev.vars}`、出力構造は vanilla vite と同一）。＝Rolldown build は成立見込み（ドロップインに近い）。
+- **vite-plus の Rolldown-vite は `vite v8.0.16` として動作**＝`@cloudflare/vite-plugin@1.x` の peer `vite ^6.1 || ^7 || ^8` を満たす。
+- **`@cloudflare/vite-plugin@1.42.1` は `wrangler ^4.103` を peer 要求**（かつ wrangler 4.103 を同梱）＝**plugin 1.x ⇒ wrangler 4 必須**（本文の読み通り）。
+- **Workers Builds への差し替えは透過**: Build command=`pnpm install --frozen-lockfile && pnpm run build`、Deploy command=`pnpm exec wrangler ...`（=リポ pin の wrangler）。`build` スクリプトを `vp build` に、package.json の wrangler を 4 に上げれば**ダッシュボード手編集なしで反映**（skill `cloudflare-workers-builds-keyless-deploy` の記録）。
+- 残課題: `@vitejs/plugin-react` は vite-plus で deprecation 警告→**plugin-react を外し vite-plus 内蔵 React（oxc）へ**寄せる。`vp dev`（HMR×miniflare）は `vp build` ほど確証がない→問題あれば local dev は `vite dev` 据え置き（非本番・低 stakes）。
+
+### 段1 の確定（PR-A・本番 CD に触れない）
+- **lint ポリシー = B**: 既定 `correctness` ＋ `react/no-danger` ＋ `no-restricted-imports(rehype-raw)`。＝[ADR-0004](0004-ugc-markdown-rendering.md)（生 HTML 非描画）を **CI 強制可能な制約**にする（現状違反なし＝将来の退行を阻む regression ガード）。`no-restricted-syntax`（class 禁止）は Oxlint 1.70 で未実装、`Math.random` 禁止は `src/lib/shuffle.ts` の正当用途と衝突するため段1 では見送り（レビュー・規約に委ねる）。
+- **配線**: root `.oxlintrc.json` 単一＋各パッケージに `lint`/`fmt`/`fmt:check` スクリプト。`vp lint`/`vp fmt` は vite config を読むため**パッケージ CWD 実行が必須**（raw `oxlint`/`oxfmt` は LSP 専用で CLI 不可＝root 一括の逃げ道なし）。CI は `pnpm -r run lint` ＋ fmt チェック。fmt は既定設定で一括整形（~33ファイル・**ロジックと分けた単独コミット**）。
+
+### 段2 の確定（PR-B・本番 CD に触れる）
+- 依存: wrangler 3→4 / `@cloudflare/vite-plugin` 0.1→1.x / `@vitejs/plugin-react` 除去。`dev`/`build` を `vp dev`/`vp build` へ。
+- **ratelimit**: `unsafe.bindings`（v3 回避策）→ **正式 `ratelimits` 形**（wrangler 4.36+ が有効化・skill `cloudflare-workers-bot-scan-defense` 推奨）。`namespace_id 1001`・limit 30/period 60 を維持＝同一 limiter。ランタイム同一・fail-open で挙動リスクは低い。`compatibility_date` は据え置き（runtime semantics を本 PR で動かさない）。
+- **検証ゲート**: ローカル `vp build` ＋ **e2e 6/6**（`wrangler dev` v4 駆動）＋ `wrangler deploy --dry-run` → main merge 後 **Workers Builds を注視**（赤＝新デプロイされず本番は前版維持＝fix-forward）→ 本番 `/health`・バンドルハッシュ確認。

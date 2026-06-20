@@ -70,10 +70,7 @@ export type PublicQuiz = { loaded: LoadedQuiz; authorDisplayName: string };
 
 // Load a quiz for public viewing / challenging. Returns null unless it is
 // published and not deleted (drafts/hidden/deleted are 404 to non-authors).
-export async function loadPublishedQuiz(
-  env: Bindings,
-  id: string,
-): Promise<PublicQuiz | null> {
+export async function loadPublishedQuiz(env: Bindings, id: string): Promise<PublicQuiz | null> {
   const loaded = await loadQuizWithContent(env, id);
   if (!loaded || loaded.quiz.status !== "published" || loaded.quiz.deletedAt !== null) {
     return null;

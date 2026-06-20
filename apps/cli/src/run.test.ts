@@ -45,7 +45,9 @@ describe("run", () => {
   });
 
   it("creates a quiz: prints the id, exits 0, sends Bearer to the default prod base", async () => {
-    const fetch = vi.fn(async () => jsonResponse(201, { id: "q-99" })) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async () =>
+      jsonResponse(201, { id: "q-99" }),
+    ) as unknown as typeof globalThis.fetch;
     const { io, cap } = makeIo({ fetch, readStdin: async () => '{"title":"t","questions":[]}' });
     expect(await run(["create"], io)).toBe(0);
     expect(cap.out).toEqual(["q-99"]);
@@ -56,7 +58,9 @@ describe("run", () => {
   });
 
   it("honors MAZUOBOERU_BASE_URL override", async () => {
-    const fetch = vi.fn(async () => jsonResponse(201, { id: "x" })) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async () =>
+      jsonResponse(201, { id: "x" }),
+    ) as unknown as typeof globalThis.fetch;
     const { io } = makeIo({
       env: { MAZUOBOERU_PAT: "t", MAZUOBOERU_BASE_URL: "http://localhost:5373" },
       fetch,
@@ -68,7 +72,9 @@ describe("run", () => {
   });
 
   it("exits 2 on malformed JSON input without calling fetch", async () => {
-    const fetch = vi.fn(async () => jsonResponse(201, { id: "x" })) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async () =>
+      jsonResponse(201, { id: "x" }),
+    ) as unknown as typeof globalThis.fetch;
     const { io, cap } = makeIo({ fetch, readStdin: async () => "not json" });
     expect(await run(["create"], io)).toBe(2);
     expect(cap.err.join("\n")).toContain("not valid JSON");

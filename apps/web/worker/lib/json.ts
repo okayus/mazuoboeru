@@ -6,9 +6,7 @@
 export function parseStringArray(json: string): string[] {
   try {
     const parsed: unknown = JSON.parse(json);
-    return Array.isArray(parsed)
-      ? parsed.filter((s): s is string => typeof s === "string")
-      : [];
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [];
   } catch {
     return [];
   }

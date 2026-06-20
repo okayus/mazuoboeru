@@ -27,7 +27,8 @@ const sessionId = (token: string): string =>
   createHash("sha256").update(token, "utf8").digest("hex");
 
 const wrangler = (args: string[]): void => {
-  if (args.includes("--remote")) throw new Error("refusing to run wrangler against --remote in e2e seed");
+  if (args.includes("--remote"))
+    throw new Error("refusing to run wrangler against --remote in e2e seed");
   execFileSync("pnpm", ["exec", "wrangler", ...args], {
     stdio: "inherit",
     env: { ...process.env, CI: "true" }, // non-interactive: skip the migration prompt

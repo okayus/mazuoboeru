@@ -1,7 +1,7 @@
 {
   "name": "@mazuoboeru/web",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -10,6 +10,9 @@
     "check": "tsc --noEmit",
     "check:e2e": "tsc --noEmit -p e2e/tsconfig.json",
     "test": "vp test run",
+    "lint": "vp lint -c ../../.oxlintrc.json --deny-warnings",
+    "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check",
     "db:migrate": "wrangler d1 migrations apply mazuoboeru-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote",
     "secrets:prod": "bash scripts/put-prod-secrets.sh",

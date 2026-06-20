@@ -1,0 +1,17 @@
+{
+  "plugins": ["react", "unicorn", "typescript"],
+  "rules": {
+    "react/no-danger": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "rehype-raw",
+            "message": "ADR-0004: 生 HTML は描画しない（react-markdown + rehype-sanitize のみ）。rehype-raw は raw HTML を通す XSS 経路なので禁止。"
+          }
+        ]
+      }
+    ]
+  }
+}

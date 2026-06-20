@@ -28,8 +28,7 @@ export function ReviewList() {
     try {
       await api.removeFromReviewList(questionId);
       await mutate(
-        (prev) =>
-          prev ? { items: prev.items.filter((i) => i.questionId !== questionId) } : prev,
+        (prev) => (prev ? { items: prev.items.filter((i) => i.questionId !== questionId) } : prev),
         { revalidate: false },
       );
     } catch {
@@ -49,7 +48,8 @@ export function ReviewList() {
       ) : null}
       {items.length === 0 ? (
         <p>
-          まだ設問がありません。挑戦画面で各設問の「☆ 復習リストに追加」から、覚え直したい設問を入れられます。
+          まだ設問がありません。挑戦画面で各設問の「☆
+          復習リストに追加」から、覚え直したい設問を入れられます。
         </p>
       ) : (
         <ul className="quiz-list">

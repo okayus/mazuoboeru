@@ -17,9 +17,7 @@ export async function setQuizTags(
 ): Promise<void> {
   const d = db(env);
   const keys = tags.map((t) => t.key);
-  const existing = keys.length
-    ? await d.select().from(tag).where(inArray(tag.nameKey, keys))
-    : [];
+  const existing = keys.length ? await d.select().from(tag).where(inArray(tag.nameKey, keys)) : [];
   const idByKey = new Map(existing.map((row) => [row.nameKey, row.id]));
 
   const now = Date.now();

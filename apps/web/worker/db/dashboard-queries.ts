@@ -32,10 +32,7 @@ export async function loadUserAnswerFacts(
 // uniformly (ADR-0006 2026-06-19: a drill answer is an answer). No published filter (activity
 // counts all answers, like attempts); the inner join only resolves quizId and drops answers
 // whose question was hard-deleted (a Phase 4 concern).
-export async function loadUserDrillFacts(
-  env: Bindings,
-  userId: string,
-): Promise<UserAnswerFact[]> {
+export async function loadUserDrillFacts(env: Bindings, userId: string): Promise<UserAnswerFact[]> {
   const rows = await db(env)
     .select({
       isCorrect: reviewAnswer.isCorrect,

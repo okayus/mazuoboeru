@@ -105,11 +105,13 @@ export async function recordReviewAnswer(
   env: Bindings,
   params: { userId: string; questionId: string; isCorrect: boolean },
 ): Promise<void> {
-  await db(env).insert(reviewAnswer).values({
-    id: newId(),
-    userId: params.userId,
-    questionId: params.questionId,
-    isCorrect: params.isCorrect ? 1 : 0,
-    answeredAt: Date.now(),
-  });
+  await db(env)
+    .insert(reviewAnswer)
+    .values({
+      id: newId(),
+      userId: params.userId,
+      questionId: params.questionId,
+      isCorrect: params.isCorrect ? 1 : 0,
+      answeredAt: Date.now(),
+    });
 }

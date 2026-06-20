@@ -40,14 +40,16 @@ export async function createToken(
   const id = newId();
   const now = Date.now();
   const scopes: Scope[] = [...SCOPES];
-  await db(env).insert(apiToken).values({
-    id,
-    userId,
-    name,
-    tokenHash,
-    scopes: JSON.stringify(scopes),
-    createdAt: now,
-  });
+  await db(env)
+    .insert(apiToken)
+    .values({
+      id,
+      userId,
+      name,
+      tokenHash,
+      scopes: JSON.stringify(scopes),
+      createdAt: now,
+    });
   return { id, name, token, scopes, createdAt: now };
 }
 
@@ -61,10 +63,7 @@ export type TokenSummary = {
   revokedAt: number | null;
 };
 
-export async function listTokens(
-  env: Bindings,
-  userId: string,
-): Promise<TokenSummary[]> {
+export async function listTokens(env: Bindings, userId: string): Promise<TokenSummary[]> {
   const rows = await db(env)
     .select({
       id: apiToken.id,
@@ -82,21 +81,14 @@ export async function listTokens(
 }
 
 // Revoke a token the caller owns. Returns false if it isn't theirs / doesn't exist.
-export async function revokeToken(
-  env: Bindings,
-  userId: string,
-  id: string,
-): Promise<boolean> {
+export async function revokeToken(env: Bindings, userId: string, id: string): Promise<boolean> {
   const owned = await db(env)
     .select({ id: apiToken.id })
     .from(apiToken)
     .where(and(eq(apiToken.id, id), eq(apiToken.userId, userId)))
     .limit(1);
   if (!owned[0]) return false;
-  await db(env)
-    .update(apiToken)
-    .set({ revokedAt: Date.now() })
-    .where(eq(apiToken.id, id));
+  await db(env).update(apiToken).set({ revokedAt: Date.now() }).where(eq(apiToken.id, id));
   return true;
 }
 
@@ -128,10 +120,7 @@ export async function validatePat(
   if (t.expiresAt !== null && t.expiresAt < now) return null;
 
   if (t.lastUsedAt === null || now - t.lastUsedAt > LAST_USED_THROTTLE_MS) {
-    await db(env)
-      .update(apiToken)
-      .set({ lastUsedAt: now })
-      .where(eq(apiToken.id, t.id));
+    await db(env).update(apiToken).set({ lastUsedAt: now }).where(eq(apiToken.id, t.id));
   }
   return { user: row.user, scopes: parseScopes(t.scopes) };
 }

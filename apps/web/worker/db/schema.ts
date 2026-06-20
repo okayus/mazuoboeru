@@ -19,23 +19,20 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-export const user = sqliteTable(
-  "user",
-  {
-    id: text("id").primaryKey(),
-    // Public. Shown as the quiz author. Editable by the user.
-    displayName: text("display_name").notNull(),
-    // Private PII. Used for OAuth identity / notifications, never exposed publicly.
-    email: text("email"),
-    role: text("role", { enum: ["user", "moderator", "admin"] })
-      .notNull()
-      .default("user"),
-    status: text("status", { enum: ["active", "suspended"] })
-      .notNull()
-      .default("active"),
-    createdAt: integer("created_at").notNull(),
-  },
-);
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(),
+  // Public. Shown as the quiz author. Editable by the user.
+  displayName: text("display_name").notNull(),
+  // Private PII. Used for OAuth identity / notifications, never exposed publicly.
+  email: text("email"),
+  role: text("role", { enum: ["user", "moderator", "admin"] })
+    .notNull()
+    .default("user"),
+  status: text("status", { enum: ["active", "suspended"] })
+    .notNull()
+    .default("active"),
+  createdAt: integer("created_at").notNull(),
+});
 
 // MVP auth method. (provider, provider_account_id) is the IdP-side stable identity.
 // Auto-linking onto an existing user is allowed only when the *current* provider
@@ -195,9 +192,7 @@ export const attemptAnswer = sqliteTable(
     isCorrect: integer("is_correct").notNull(), // 0|1
     answeredAt: integer("answered_at").notNull(),
   },
-  (t) => [
-    uniqueIndex("idx_attempt_answer_unique").on(t.attemptId, t.questionId),
-  ],
+  (t) => [uniqueIndex("idx_attempt_answer_unique").on(t.attemptId, t.questionId)],
 );
 
 // Moderation report channel (Phase 1 MVP). A user reports a quiz/question/user with
@@ -259,10 +254,7 @@ export const quizTags = sqliteTable(
       .notNull()
       .references(() => tag.id),
   },
-  (t) => [
-    primaryKey({ columns: [t.quizId, t.tagId] }),
-    index("idx_quiz_tags_tag").on(t.tagId),
-  ],
+  (t) => [primaryKey({ columns: [t.quizId, t.tagId] }), index("idx_quiz_tags_tag").on(t.tagId)],
 );
 
 // Directed broader/narrower ("is-a") edge forming the tag DAG (ADR-0007). One row per

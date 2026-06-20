@@ -36,13 +36,15 @@ export async function createSession(c: Context<Env>, userId: string): Promise<vo
   const token = randomToken(32);
   const id = await sha256Hex(token);
   const now = Date.now();
-  await db(c.env).insert(session).values({
-    id,
-    userId,
-    createdAt: now,
-    lastSeenAt: now,
-    expiresAt: now + SESSION_TTL_MS,
-  });
+  await db(c.env)
+    .insert(session)
+    .values({
+      id,
+      userId,
+      createdAt: now,
+      lastSeenAt: now,
+      expiresAt: now + SESSION_TTL_MS,
+    });
   writeCookie(c, token);
 }
 

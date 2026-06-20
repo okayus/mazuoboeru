@@ -13,13 +13,7 @@ export async function findUnfinishedAttempt(
   const rows = await db(env)
     .select()
     .from(attempt)
-    .where(
-      and(
-        eq(attempt.userId, userId),
-        eq(attempt.quizId, quizId),
-        isNull(attempt.finishedAt),
-      ),
-    )
+    .where(and(eq(attempt.userId, userId), eq(attempt.quizId, quizId), isNull(attempt.finishedAt)))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -35,15 +29,8 @@ export async function createAttempt(
   return { id, userId, quizId, startedAt, finishedAt: null, score: null, total: null };
 }
 
-export async function getAttempt(
-  env: Bindings,
-  attemptId: string,
-): Promise<Attempt | null> {
-  const rows = await db(env)
-    .select()
-    .from(attempt)
-    .where(eq(attempt.id, attemptId))
-    .limit(1);
+export async function getAttempt(env: Bindings, attemptId: string): Promise<Attempt | null> {
+  const rows = await db(env).select().from(attempt).where(eq(attempt.id, attemptId)).limit(1);
   return rows[0] ?? null;
 }
 
@@ -51,10 +38,7 @@ export async function listAttemptAnswers(
   env: Bindings,
   attemptId: string,
 ): Promise<AttemptAnswer[]> {
-  return db(env)
-    .select()
-    .from(attemptAnswer)
-    .where(eq(attemptAnswer.attemptId, attemptId));
+  return db(env).select().from(attemptAnswer).where(eq(attemptAnswer.attemptId, attemptId));
 }
 
 // Record one graded answer. The unique (attempt_id, question_id) index is the real
@@ -68,14 +52,16 @@ export async function recordAnswer(
     isCorrect: boolean;
   },
 ): Promise<void> {
-  await db(env).insert(attemptAnswer).values({
-    id: newId(),
-    attemptId: params.attemptId,
-    questionId: params.questionId,
-    response: params.response,
-    isCorrect: params.isCorrect ? 1 : 0,
-    answeredAt: Date.now(),
-  });
+  await db(env)
+    .insert(attemptAnswer)
+    .values({
+      id: newId(),
+      attemptId: params.attemptId,
+      questionId: params.questionId,
+      response: params.response,
+      isCorrect: params.isCorrect ? 1 : 0,
+      answeredAt: Date.now(),
+    });
 }
 
 export async function finalizeAttempt(
