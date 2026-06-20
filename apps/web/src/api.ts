@@ -10,7 +10,7 @@
 // Hono validator, so RPC can't infer the input shapes.
 import { hc, type InferResponseType } from "hono/client";
 import type { AppType } from "../worker";
-import type { ApiErrorBody, ApiErrorCode } from "../worker/http/errors";
+import type { ApiErrorBody } from "../worker/http/errors";
 
 const client = hc<AppType>("/");
 
@@ -80,7 +80,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     credentials: "same-origin",
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
   const text = await res.text();
   const body: unknown = text ? JSON.parse(text) : null;
