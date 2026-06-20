@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  createOutcome,
-  createRequest,
-  publishOutcome,
-  publishRequest,
-} from "./request.ts";
+import { createOutcome, createRequest, publishOutcome, publishRequest } from "./request.ts";
 
 describe("createRequest", () => {
   it("POSTs to /api/quizzes with Bearer auth and the raw body", () => {
@@ -19,7 +14,9 @@ describe("createRequest", () => {
   });
 
   it("strips a trailing slash from the base url", () => {
-    expect(createRequest("https://x.example/", "t", "{}").url).toBe("https://x.example/api/quizzes");
+    expect(createRequest("https://x.example/", "t", "{}").url).toBe(
+      "https://x.example/api/quizzes",
+    );
   });
 });
 

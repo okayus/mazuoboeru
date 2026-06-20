@@ -1,11 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import {
-  requireAuth,
-  requireCreator,
-  requireScope,
-  requireUser,
-} from "../auth/middleware";
+import { requireAuth, requireCreator, requireScope, requireUser } from "../auth/middleware";
 import {
   createDraftQuiz,
   listQuizzesByAuthor,
@@ -114,7 +109,10 @@ export const quizzesRouter = new Hono<Env>()
   .get("/mine", requireAuth, async (c) => {
     const user = requireUser(c);
     const quizzes = await listQuizzesByAuthor(c.env, user.id);
-    const tagsByQuiz = await tagsForQuizzes(c.env, quizzes.map((q) => q.id));
+    const tagsByQuiz = await tagsForQuizzes(
+      c.env,
+      quizzes.map((q) => q.id),
+    );
     return c.json({
       quizzes: quizzes.map((q) => ({ ...q, tags: tagsByQuiz.get(q.id) ?? [] })),
     });

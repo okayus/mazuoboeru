@@ -85,7 +85,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await res.text();
   const body: unknown = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    const err: ApiError = { isApiError: true, status: res.status, body: body as ApiErrorBody | null };
+    const err: ApiError = {
+      isApiError: true,
+      status: res.status,
+      body: body as ApiErrorBody | null,
+    };
     throw err;
   }
   return body as T;
@@ -93,7 +97,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   me: () => request<Ok<typeof client.api.auth.me.$get>>("/auth/me"),
-  logout: () => request<Ok<typeof client.api.auth.logout.$post>>("/auth/logout", { method: "POST" }),
+  logout: () =>
+    request<Ok<typeof client.api.auth.logout.$post>>("/auth/logout", { method: "POST" }),
 
   timeline: (tag?: string) =>
     request<Ok<typeof client.api.public.quizzes.$get>>(
@@ -140,7 +145,9 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
   revokeToken: (id: string) =>
-    request<Ok<(typeof client.api.tokens)[":id"]["$delete"]>>(`/tokens/${id}`, { method: "DELETE" }),
+    request<Ok<(typeof client.api.tokens)[":id"]["$delete"]>>(`/tokens/${id}`, {
+      method: "DELETE",
+    }),
 
   report: (input: ReportInput) =>
     request<Ok<typeof client.api.reports.$post>>("/reports", {

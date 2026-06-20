@@ -47,10 +47,7 @@ export async function reviewListIdsAmong(
 
 // Whether a question exists and belongs to a currently published, non-deleted quiz.
 // Gate for adding to the Review List: you can only add questions you could attempt.
-export async function publishedQuestionExists(
-  env: Bindings,
-  questionId: string,
-): Promise<boolean> {
+export async function publishedQuestionExists(env: Bindings, questionId: string): Promise<boolean> {
   const rows = await db(env)
     .select({ id: question.id })
     .from(question)

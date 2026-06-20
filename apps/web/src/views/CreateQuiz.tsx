@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  api,
-  isApiError,
-  type QuestionInput,
-  type QuestionType,
-  type QuizInput,
-} from "../api";
+import { api, isApiError, type QuestionInput, type QuestionType, type QuizInput } from "../api";
 import { navigate } from "../useRoute";
 
 type ChoiceDraft = { id: string; text: string; isCorrect: boolean };
@@ -79,7 +73,10 @@ export function CreateQuiz() {
       }),
     };
     if (description.trim()) input.description = description.trim();
-    const tagList = tags.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+    const tagList = tags
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (tagList.length) input.tags = tagList;
     return input;
   };
@@ -122,11 +119,17 @@ export function CreateQuiz() {
   return (
     <div>
       <h2>クイズを作る</h2>
-      <p className="meta">公開すると全ユーザーに見えます。公開は取り消せません（下書きには戻せません）。</p>
+      <p className="meta">
+        公開すると全ユーザーに見えます。公開は取り消せません（下書きには戻せません）。
+      </p>
 
       <label className="field">
         <span>タイトル</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例: 日本の地理" />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="例: 日本の地理"
+        />
       </label>
       <label className="field">
         <span>説明（Markdown 可）</span>
@@ -134,7 +137,11 @@ export function CreateQuiz() {
       </label>
       <label className="field">
         <span>タグ（カンマ/スペース区切り・最大5・任意）</span>
-        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="例: Docker, ネットワーク" />
+        <input
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          placeholder="例: Docker, ネットワーク"
+        />
       </label>
 
       {questions.map((q, qi) => (
@@ -146,7 +153,10 @@ export function CreateQuiz() {
               <option value="mcq_multi">複数選択</option>
             </select>
             {questions.length > 1 ? (
-              <button className="link" onClick={() => setQuestions((qs) => qs.filter((_, i) => i !== qi))}>
+              <button
+                className="link"
+                onClick={() => setQuestions((qs) => qs.filter((_, i) => i !== qi))}
+              >
                 設問を削除
               </button>
             ) : null}
@@ -177,7 +187,9 @@ export function CreateQuiz() {
                   onChange={(e) =>
                     patchQuestion(qi, (qq) => ({
                       ...qq,
-                      choices: qq.choices.map((cc, j) => (j === ci ? { ...cc, text: e.target.value } : cc)),
+                      choices: qq.choices.map((cc, j) =>
+                        j === ci ? { ...cc, text: e.target.value } : cc,
+                      ),
                     }))
                   }
                 />
@@ -185,7 +197,10 @@ export function CreateQuiz() {
                   <button
                     className="link"
                     onClick={() =>
-                      patchQuestion(qi, (qq) => ({ ...qq, choices: qq.choices.filter((_, j) => j !== ci) }))
+                      patchQuestion(qi, (qq) => ({
+                        ...qq,
+                        choices: qq.choices.filter((_, j) => j !== ci),
+                      }))
                     }
                   >
                     ✕
@@ -195,7 +210,9 @@ export function CreateQuiz() {
             ))}
             <button
               className="link"
-              onClick={() => patchQuestion(qi, (qq) => ({ ...qq, choices: [...qq.choices, emptyChoice()] }))}
+              onClick={() =>
+                patchQuestion(qi, (qq) => ({ ...qq, choices: [...qq.choices, emptyChoice()] }))
+              }
             >
               ＋ 選択肢を追加
             </button>

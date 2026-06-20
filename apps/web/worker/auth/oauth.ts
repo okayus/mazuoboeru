@@ -1,10 +1,4 @@
-import {
-  generateCodeVerifier,
-  generateState,
-  GitHub,
-  Google,
-  type OAuth2Tokens,
-} from "arctic";
+import { generateCodeVerifier, generateState, GitHub, Google, type OAuth2Tokens } from "arctic";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { and, eq } from "drizzle-orm";
@@ -36,20 +30,12 @@ function redirectURI(env: Bindings, provider: Provider): string {
 
 function googleClient(env: Bindings): Google | null {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return null;
-  return new Google(
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
-    redirectURI(env, "google"),
-  );
+  return new Google(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectURI(env, "google"));
 }
 
 function githubClient(env: Bindings): GitHub | null {
   if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) return null;
-  return new GitHub(
-    env.GITHUB_CLIENT_ID,
-    env.GITHUB_CLIENT_SECRET,
-    redirectURI(env, "github"),
-  );
+  return new GitHub(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET, redirectURI(env, "github"));
 }
 
 // Short-lived (10 min) host-only cookies carrying the OAuth state / PKCE verifier
@@ -82,8 +68,7 @@ async function googleUser(tokens: OAuth2Tokens): Promise<ProviderUser> {
   const sub = typeof claims.sub === "string" ? claims.sub : "";
   if (!sub) throw new Error("google id_token missing sub");
   const email = typeof claims.email === "string" ? claims.email : null;
-  const emailVerified =
-    claims.email_verified === true || claims.email_verified === "true";
+  const emailVerified = claims.email_verified === true || claims.email_verified === "true";
   const name =
     typeof claims.name === "string" && claims.name.trim().length > 0
       ? claims.name
@@ -110,8 +95,7 @@ async function githubUser(tokens: OAuth2Tokens): Promise<ProviderUser> {
   const id = typeof gh.id === "number" ? String(gh.id) : "";
   if (!id) throw new Error("github user missing id");
   const login = typeof gh.login === "string" ? gh.login : "user";
-  const displayName =
-    typeof gh.name === "string" && gh.name.trim().length > 0 ? gh.name : login;
+  const displayName = typeof gh.name === "string" && gh.name.trim().length > 0 ? gh.name : login;
 
   // The /user email can be private/null — use /user/emails and require verified.
   let email: string | null = null;
@@ -123,8 +107,7 @@ async function githubUser(tokens: OAuth2Tokens): Promise<ProviderUser> {
       primary: boolean;
       verified: boolean;
     }>;
-    const chosen =
-      emails.find((e) => e.primary && e.verified) ?? emails.find((e) => e.verified);
+    const chosen = emails.find((e) => e.primary && e.verified) ?? emails.find((e) => e.verified);
     if (chosen) {
       email = chosen.email;
       emailVerified = true;

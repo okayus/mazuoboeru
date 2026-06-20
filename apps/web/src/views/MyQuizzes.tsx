@@ -108,7 +108,10 @@ function TagEditor({
     setBusy(true);
     setErr(null);
     try {
-      const list = value.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      const list = value
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
       const { tags } = await api.setQuizTags(quizId, list);
       setValue(tags.join(", "));
       onSaved();
@@ -122,7 +125,11 @@ function TagEditor({
   return (
     <div className="field tag-editor">
       <span>タグ（カンマ/スペース区切り・最大5）</span>
-      <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="例: Docker, ネットワーク" />
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="例: Docker, ネットワーク"
+      />
       <button className="link" onClick={save} disabled={busy}>
         {busy ? "保存中…" : "タグを保存"}
       </button>

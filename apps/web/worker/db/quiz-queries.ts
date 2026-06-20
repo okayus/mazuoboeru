@@ -51,11 +51,7 @@ export async function loadQuizWithContent(
     .orderBy(question.position);
   const qIds = questionRows.map((r) => r.id);
   const choiceRows = qIds.length
-    ? await d
-        .select()
-        .from(choice)
-        .where(inArray(choice.questionId, qIds))
-        .orderBy(choice.position)
+    ? await d.select().from(choice).where(inArray(choice.questionId, qIds)).orderBy(choice.position)
     : [];
 
   const byQuestion = new Map<string, LoadedChoice[]>();
@@ -194,10 +190,7 @@ export async function softDeleteQuiz(
     .where(and(eq(quiz.id, quizId), eq(quiz.authorId, authorId), isNull(quiz.deletedAt)))
     .limit(1);
   if (!owned[0]) return false;
-  await db(env)
-    .update(quiz)
-    .set({ deletedAt: Date.now() })
-    .where(eq(quiz.id, quizId));
+  await db(env).update(quiz).set({ deletedAt: Date.now() }).where(eq(quiz.id, quizId));
   return true;
 }
 

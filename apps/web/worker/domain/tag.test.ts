@@ -3,7 +3,10 @@ import { MAX_TAGS_PER_QUIZ, normalizeTag, parseTags } from "./tag";
 
 describe("normalizeTag", () => {
   it("trims and collapses internal whitespace", () => {
-    expect(normalizeTag("  ネット　ワーク  ")).toEqual({ name: "ネット ワーク", key: "ネット ワーク" });
+    expect(normalizeTag("  ネット　ワーク  ")).toEqual({
+      name: "ネット ワーク",
+      key: "ネット ワーク",
+    });
   });
 
   it("keeps display casing but lowercases the identity key", () => {

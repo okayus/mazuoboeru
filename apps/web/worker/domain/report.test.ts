@@ -21,12 +21,6 @@ describe("isReportRateLimited", () => {
 describe("report enums", () => {
   it("match the data-model categories and target types", () => {
     expect(REPORT_TARGET_TYPES).toEqual(["quiz", "question", "user"]);
-    expect(REPORT_REASON_CATEGORIES).toEqual([
-      "spam",
-      "sexual",
-      "violence",
-      "copyright",
-      "other",
-    ]);
+    expect(REPORT_REASON_CATEGORIES).toEqual(["spam", "sexual", "violence", "copyright", "other"]);
   });
 });

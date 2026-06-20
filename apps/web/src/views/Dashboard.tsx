@@ -30,9 +30,8 @@ export function Dashboard() {
         <>
           <div className="card">
             <p>
-              これまでの平均正答率:{" "}
-              <strong>{pct(data.overall.correct, data.overall.total)}</strong>（
-              {data.overall.correct} / {data.overall.total} 問）
+              これまでの平均正答率: <strong>{pct(data.overall.correct, data.overall.total)}</strong>
+              （{data.overall.correct} / {data.overall.total} 問）
             </p>
             <p>
               連続学習: <strong>{data.streak.current}</strong> 日（最長 {data.streak.longest} 日）
@@ -52,8 +51,9 @@ export function Dashboard() {
               ))}
               {data.untagged.total > 0 ? (
                 <li className="card">
-                  <span className="meta">タグなし</span>: {pct(data.untagged.correct, data.untagged.total)}（
-                  {data.untagged.correct} / {data.untagged.total}）
+                  <span className="meta">タグなし</span>:{" "}
+                  {pct(data.untagged.correct, data.untagged.total)}（{data.untagged.correct} /{" "}
+                  {data.untagged.total}）
                 </li>
               ) : null}
             </ul>

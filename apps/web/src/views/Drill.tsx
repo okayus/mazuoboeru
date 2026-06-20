@@ -171,7 +171,8 @@ function DrillCard({
         {locked ? <span className="badge">{feedback.isCorrect ? "正解" : "不正解"}</span> : null}
       </div>
       <div className="meta">
-        出典: <a href={`#/quiz/${item.quizId}`}>{item.quizTitle}</a> ・ この設問の通算正答率: {statText}
+        出典: <a href={`#/quiz/${item.quizId}`}>{item.quizTitle}</a> ・ この設問の通算正答率:{" "}
+        {statText}
       </div>
       <QuizMarkdown>{item.prompt}</QuizMarkdown>
 

@@ -7,9 +7,8 @@ export function Timeline() {
   // Tag filter lives in local state; the SWR key includes it so each tag's
   // timeline is cached/deduped separately and revalidates on focus.
   const [tag, setTag] = useState<string | null>(null);
-  const { data, error } = useSWR(
-    tag ? `public/quizzes?tag=${tag}` : "public/quizzes",
-    () => api.timeline(tag ?? undefined),
+  const { data, error } = useSWR(tag ? `public/quizzes?tag=${tag}` : "public/quizzes", () =>
+    api.timeline(tag ?? undefined),
   );
 
   if (error) return <p className="error">読み込みに失敗しました</p>;
