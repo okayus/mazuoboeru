@@ -81,4 +81,41 @@ describe("validateForPublish", () => {
       errors.some((e) => e.code === "single_needs_exactly_one_correct" && e.questionIndex === 1),
     ).toBe(true);
   });
+
+  it("short needs at least one non-empty accepted answer", () => {
+    expect(
+      codes({ title: "T", questions: [{ type: "short", choices: [], acceptedAnswers: [] }] }),
+    ).toContain("short_needs_answer");
+    expect(
+      codes({ title: "T", questions: [{ type: "short", choices: [], acceptedAnswers: ["  "] }] }),
+    ).toContain("short_needs_answer");
+    expect(
+      validateForPublish({
+        title: "T",
+        questions: [{ type: "short", choices: [], acceptedAnswers: ["nsproxy"] }],
+      }),
+    ).toEqual([]);
+  });
+
+  it("short ignores the mcq choice rules (no two-choice requirement)", () => {
+    // No choices, one accepted answer → publishable; never reports a choice error.
+    expect(
+      validateForPublish({
+        title: "T",
+        questions: [{ type: "short", choices: [], acceptedAnswers: ["x"] }],
+      }),
+    ).toEqual([]);
+  });
+
+  it("a quiz can mix mcq and short questions", () => {
+    expect(
+      validateForPublish({
+        title: "T",
+        questions: [
+          { type: "mcq_single", choices: [{ isCorrect: true }, { isCorrect: false }] },
+          { type: "short", choices: [], acceptedAnswers: ["nsproxy"] },
+        ],
+      }),
+    ).toEqual([]);
+  });
 });

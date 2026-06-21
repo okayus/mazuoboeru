@@ -9,6 +9,8 @@ type QuestionDraft = {
   prompt: string;
   explanation: string;
   choices: ChoiceDraft[];
+  // short only: accepted answers, one per line (1st line = canonical, shown as 正解).
+  answer: string;
 };
 
 // Stable client-side ids for React keys. Without these, removing a middle question
@@ -21,6 +23,7 @@ const emptyQuestion = (): QuestionDraft => ({
   prompt: "",
   explanation: "",
   choices: [emptyChoice(), emptyChoice()],
+  answer: "",
 });
 
 export function CreateQuiz() {
@@ -63,11 +66,22 @@ export function CreateQuiz() {
     const input: QuizInput = {
       title: title.trim(),
       questions: questions.map((q) => {
-        const out: QuestionInput = {
-          type: q.type,
-          prompt: q.prompt.trim(),
-          choices: q.choices.map((c) => ({ text: c.text.trim(), isCorrect: c.isCorrect })),
-        };
+        const out: QuestionInput =
+          q.type === "short"
+            ? {
+                type: "short",
+                prompt: q.prompt.trim(),
+                choices: [],
+                answer: q.answer
+                  .split("\n")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              }
+            : {
+                type: q.type,
+                prompt: q.prompt.trim(),
+                choices: q.choices.map((c) => ({ text: c.text.trim(), isCorrect: c.isCorrect })),
+              };
         if (q.explanation.trim()) out.explanation = q.explanation.trim();
         return out;
       }),
@@ -92,7 +106,7 @@ export function CreateQuiz() {
         } catch (e) {
           if (isApiError(e) && e.status === 422) {
             setError(
-              "公開条件を満たしていません（タイトル / 設問1つ以上 / 各設問の選択肢2つ以上 / 単一選択は正解1つ・複数選択は正解1つ以上）。下書きとして保存しました。",
+              "公開条件を満たしていません（タイトル / 設問1つ以上 / 選択式は選択肢2つ以上＋単一は正解1つ・複数は正解1つ以上 / 一問一答は許容解1つ以上）。下書きとして保存しました。",
             );
             navigate("/mine");
             return;
@@ -151,6 +165,7 @@ export function CreateQuiz() {
             <select value={q.type} onChange={(e) => setType(qi, e.target.value as QuestionType)}>
               <option value="mcq_single">単一選択</option>
               <option value="mcq_multi">複数選択</option>
+              <option value="short">一問一答（自由入力）</option>
             </select>
             {questions.length > 1 ? (
               <button
@@ -171,52 +186,67 @@ export function CreateQuiz() {
             />
           </label>
 
-          <div className="field">
-            <span>選択肢（チェックで正解）</span>
-            {q.choices.map((c, ci) => (
-              <div key={c.id} className="choice-edit">
-                <input
-                  type={q.type === "mcq_single" ? "radio" : "checkbox"}
-                  name={`correct-${q.id}`}
-                  checked={c.isCorrect}
-                  onChange={(e) => setCorrect(qi, ci, e.target.checked)}
-                />
-                <input
-                  value={c.text}
-                  placeholder={`選択肢 ${ci + 1}`}
-                  onChange={(e) =>
-                    patchQuestion(qi, (qq) => ({
-                      ...qq,
-                      choices: qq.choices.map((cc, j) =>
-                        j === ci ? { ...cc, text: e.target.value } : cc,
-                      ),
-                    }))
-                  }
-                />
-                {q.choices.length > 2 ? (
-                  <button
-                    className="link"
-                    onClick={() =>
+          {q.type === "short" ? (
+            <label className="field">
+              <span>解答（許容解・1行に1つ・1行目を「正解」として表示）</span>
+              <textarea
+                value={q.answer}
+                placeholder={"例:\nnsproxy\nstruct nsproxy"}
+                onChange={(e) => patchQuestion(qi, (qq) => ({ ...qq, answer: e.target.value }))}
+                rows={3}
+              />
+              <span className="meta">
+                大文字小文字・全角半角・前後の空白は自動で無視。かな違い・別名は別解として行で追加。
+              </span>
+            </label>
+          ) : (
+            <div className="field">
+              <span>選択肢（チェックで正解）</span>
+              {q.choices.map((c, ci) => (
+                <div key={c.id} className="choice-edit">
+                  <input
+                    type={q.type === "mcq_single" ? "radio" : "checkbox"}
+                    name={`correct-${q.id}`}
+                    checked={c.isCorrect}
+                    onChange={(e) => setCorrect(qi, ci, e.target.checked)}
+                  />
+                  <input
+                    value={c.text}
+                    placeholder={`選択肢 ${ci + 1}`}
+                    onChange={(e) =>
                       patchQuestion(qi, (qq) => ({
                         ...qq,
-                        choices: qq.choices.filter((_, j) => j !== ci),
+                        choices: qq.choices.map((cc, j) =>
+                          j === ci ? { ...cc, text: e.target.value } : cc,
+                        ),
                       }))
                     }
-                  >
-                    ✕
-                  </button>
-                ) : null}
-              </div>
-            ))}
-            <button
-              className="link"
-              onClick={() =>
-                patchQuestion(qi, (qq) => ({ ...qq, choices: [...qq.choices, emptyChoice()] }))
-              }
-            >
-              ＋ 選択肢を追加
-            </button>
-          </div>
+                  />
+                  {q.choices.length > 2 ? (
+                    <button
+                      className="link"
+                      onClick={() =>
+                        patchQuestion(qi, (qq) => ({
+                          ...qq,
+                          choices: qq.choices.filter((_, j) => j !== ci),
+                        }))
+                      }
+                    >
+                      ✕
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              <button
+                className="link"
+                onClick={() =>
+                  patchQuestion(qi, (qq) => ({ ...qq, choices: [...qq.choices, emptyChoice()] }))
+                }
+              >
+                ＋ 選択肢を追加
+              </button>
+            </div>
+          )}
 
           <label className="field">
             <span>解説（任意・採点後に表示）</span>

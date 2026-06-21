@@ -93,17 +93,17 @@ user 1───* report          (通報)
 | --- | --- | --- |
 | id | text | PK |
 | quiz_id | text | FK → quiz |
-| type | text | **MVP は `mcq_single` / `mcq_multi` のみ**。`boolean` / `short` / `cloze` は Phase 2 候補 |
+| type | text | CHECK制約で `mcq_single` / `mcq_multi` / `short`（[ADR-0012](adr/0012-short-answer-grading-normalization.md)・2026-06-21 実装）。`boolean` / `cloze` は今後の候補 |
 | prompt | text | 設問文（Markdown、サニタイズ） |
 | explanation | text? | 解説（**採点後に開示**） |
-| answer | text? | Phase 2 で `short`/`cloze` を入れる時に使用（正規化ルールつき）。MVP では未使用 |
+| answer | text? | `short` の許容解 JSON `{"accept":[生文字列,...]}`（[ADR-0012](adr/0012-short-answer-grading-normalization.md)）。mcq は NULL。挑戦前は公開射影に出さない。`cloze` 化時は `{"blanks":[{"accept":[...]}]}` へ拡張 |
 | position | integer | 並び順 |
 
 ### choice（多肢選択の選択肢）
 | カラム | 型 | 備考 |
 | --- | --- | --- |
 | id | text | PK |
-| question_id | text | FK |
+| question_id | text | FK → question（**NO ACTION**＝[ADR-0012](adr/0012-short-answer-grading-normalization.md) で CASCADE から降格。`question` は設問形式追加のたび rebuild されるため。choice の削除はアプリ側 `replaceDraftContent` が明示） |
 | text | text | 選択肢文 |
 | is_correct | integer (bool) | **クライアントに挑戦前は渡さない** |
 | position | integer | |
@@ -123,7 +123,7 @@ user 1───* report          (通報)
 | カラム | 型 | 備考 |
 | --- | --- | --- |
 | user_id | text | FK → user（CASCADE・本人所有） |
-| question_id | text | FK → question（CASCADE・ハード削除時。ソフト削除運用では読み時に絞る） |
+| question_id | text | FK → question（**NO ACTION**＝[ADR-0012](adr/0012-short-answer-grading-normalization.md) で CASCADE から降格。`question` rebuild で巻き込まれないため。孤児行は読み時に絞る） |
 | created_at | integer | epoch ms。一覧の並び（新しい順）に使う |
 |  |  | PK = (user_id, question_id) |
 

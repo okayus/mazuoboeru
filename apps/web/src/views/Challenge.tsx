@@ -4,12 +4,23 @@ import { shuffle } from "../lib/shuffle";
 import { QuizMarkdown } from "../QuizMarkdown";
 import { ReportButton } from "./ReportButton";
 
-type Feedback = {
-  isCorrect: boolean;
-  correctChoiceIds: string[];
-  explanation: string | null;
-  selected: string[];
-};
+// Per-question feedback after grading, discriminated by question type (mcq highlights choices;
+// short shows the typed answer + the canonical/accepted answers — plain text, ADR-0012).
+type Feedback =
+  | {
+      type: "mcq_single" | "mcq_multi";
+      isCorrect: boolean;
+      explanation: string | null;
+      selectedChoiceIds: string[];
+      correctChoiceIds: string[];
+    }
+  | {
+      type: "short";
+      isCorrect: boolean;
+      explanation: string | null;
+      submittedText: string;
+      acceptedAnswers: string[];
+    };
 type Stat = { correct: number; total: number };
 
 export function Challenge({ quizId }: { quizId: string }) {
@@ -30,12 +41,22 @@ export function Challenge({ quizId }: { quizId: string }) {
         setStats(s.questionStats);
         const initial: Record<string, Feedback> = {};
         for (const a of s.answers) {
-          initial[a.questionId] = {
-            isCorrect: a.isCorrect,
-            correctChoiceIds: a.correctChoiceIds,
-            explanation: a.explanation,
-            selected: a.selectedChoiceIds,
-          };
+          initial[a.questionId] =
+            a.type === "short"
+              ? {
+                  type: "short",
+                  isCorrect: a.isCorrect,
+                  explanation: a.explanation,
+                  submittedText: a.submittedText,
+                  acceptedAnswers: a.acceptedAnswers,
+                }
+              : {
+                  type: a.type,
+                  isCorrect: a.isCorrect,
+                  explanation: a.explanation,
+                  selectedChoiceIds: a.selectedChoiceIds,
+                  correctChoiceIds: a.correctChoiceIds,
+                };
         }
         setFeedback(initial);
         // Resume at the first unanswered question (or the last, if all answered).
@@ -160,15 +181,18 @@ const QuestionCard = memo(function QuestionCard(props: {
   onToggleReviewList: (questionId: string, currentlyIn: boolean) => void;
 }) {
   const { question, attemptId, feedback, stat, inReviewList } = props;
+  const isShort = question.type === "short";
+  const isMulti = question.type === "mcq_multi";
   const [selected, setSelected] = useState<string[]>([]);
+  const [text, setText] = useState("");
   // Display-only choice shuffle, re-rolled per presentation: this card remounts on
   // nav (←前へ/次へ→) and reload (key={current.id}), so a fresh order each time, including
   // for already-answered questions. Stable within a mount. Grading is id-based (unaffected).
+  // Empty for short (no choices) — harmless.
   const [orderedChoices] = useState(() => shuffle(question.choices));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isMulti = question.type === "mcq_multi";
   const locked = feedback !== undefined;
   const statText =
     stat && stat.total > 0
@@ -186,17 +210,41 @@ const QuestionCard = memo(function QuestionCard(props: {
     );
   };
 
-  const submit = async () => {
+  const submitSelection = async () => {
     if (selected.length === 0) return;
     setSubmitting(true);
     setError(null);
     try {
-      const r = await api.submitAnswer(attemptId, question.id, selected);
+      const r = await api.submitAnswer(attemptId, question.id, { choiceIds: selected });
+      if (r.reveal.type === "short") return; // unreachable for an mcq question
       props.onAnswered(question.id, {
+        type: r.reveal.type,
         isCorrect: r.isCorrect,
-        correctChoiceIds: r.correctChoiceIds,
         explanation: r.explanation,
-        selected,
+        selectedChoiceIds: selected,
+        correctChoiceIds: r.reveal.correctChoiceIds,
+      });
+    } catch {
+      setError("送信に失敗しました");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitText = async () => {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await api.submitAnswer(attemptId, question.id, { text: trimmed });
+      if (r.reveal.type !== "short") return; // unreachable for a short question
+      props.onAnswered(question.id, {
+        type: "short",
+        isCorrect: r.isCorrect,
+        explanation: r.explanation,
+        submittedText: trimmed,
+        acceptedAnswers: r.reveal.acceptedAnswers,
       });
     } catch {
       setError("送信に失敗しました");
@@ -209,7 +257,7 @@ const QuestionCard = memo(function QuestionCard(props: {
     <div className={`card question ${locked ? (feedback.isCorrect ? "correct" : "wrong") : ""}`}>
       <div className="q-head">
         <strong>Q{props.index + 1}</strong>
-        <span className="badge">{isMulti ? "複数選択" : "単一選択"}</span>
+        <span className="badge">{isShort ? "一問一答" : isMulti ? "複数選択" : "単一選択"}</span>
         {locked ? <span className="badge">{feedback.isCorrect ? "正解" : "不正解"}</span> : null}
         <button
           className="link review-toggle"
@@ -221,27 +269,43 @@ const QuestionCard = memo(function QuestionCard(props: {
       <div className="meta">あなたのこの設問の通算正答率: {statText}</div>
       <QuizMarkdown>{question.prompt}</QuizMarkdown>
 
-      <ul className="choices">
-        {orderedChoices.map((ch) => {
-          const chosen = locked ? feedback.selected.includes(ch.id) : selected.includes(ch.id);
-          const correct = locked && feedback.correctChoiceIds.includes(ch.id);
-          return (
-            <li key={ch.id} className={correct ? "choice-correct" : chosen ? "choice-chosen" : ""}>
-              <label>
-                <input
-                  type={isMulti ? "checkbox" : "radio"}
-                  name={`q-${question.id}`}
-                  checked={chosen}
-                  disabled={locked}
-                  onChange={() => toggle(ch.id)}
-                />
-                {ch.text}
-                {correct ? " ✓" : ""}
-              </label>
-            </li>
-          );
-        })}
-      </ul>
+      {isShort ? (
+        <ShortAnswer
+          feedback={locked && feedback.type === "short" ? feedback : undefined}
+          text={text}
+          setText={setText}
+          submitting={submitting}
+          onSubmit={submitText}
+        />
+      ) : (
+        <ul className="choices">
+          {orderedChoices.map((ch) => {
+            const reveal = locked && feedback.type !== "short" ? feedback : undefined;
+            const chosen = reveal
+              ? reveal.selectedChoiceIds.includes(ch.id)
+              : selected.includes(ch.id);
+            const correct = reveal ? reveal.correctChoiceIds.includes(ch.id) : false;
+            return (
+              <li
+                key={ch.id}
+                className={correct ? "choice-correct" : chosen ? "choice-chosen" : ""}
+              >
+                <label>
+                  <input
+                    type={isMulti ? "checkbox" : "radio"}
+                    name={`q-${question.id}`}
+                    checked={chosen}
+                    disabled={locked}
+                    onChange={() => toggle(ch.id)}
+                  />
+                  {ch.text}
+                  {correct ? " ✓" : ""}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {error ? <p className="error">{error}</p> : null}
 
@@ -252,11 +316,54 @@ const QuestionCard = memo(function QuestionCard(props: {
             <QuizMarkdown>{feedback.explanation}</QuizMarkdown>
           </div>
         ) : null
-      ) : (
-        <button onClick={submit} disabled={submitting || selected.length === 0}>
+      ) : isShort ? null : (
+        <button onClick={submitSelection} disabled={submitting || selected.length === 0}>
           {submitting ? "採点中…" : "回答する"}
         </button>
       )}
     </div>
   );
 });
+
+// Short-answer input + post-grade reveal. The accepted answers and the user's text are plain
+// text (never markdown — ADR-0012); acceptedAnswers[0] is the canonical form, the rest are 別解.
+function ShortAnswer(props: {
+  feedback: { isCorrect: boolean; submittedText: string; acceptedAnswers: string[] } | undefined;
+  text: string;
+  setText: (s: string) => void;
+  submitting: boolean;
+  onSubmit: () => void;
+}) {
+  const { feedback } = props;
+  if (feedback) {
+    const [canonical, ...alts] = feedback.acceptedAnswers;
+    return (
+      <div className="short-answer answered">
+        <div className="meta">あなたの解答: {feedback.submittedText || "（無回答）"}</div>
+        <div>
+          正解: <strong>{canonical ?? ""}</strong>
+          {alts.length > 0 ? <span className="meta">（別解: {alts.join(" / ")}）</span> : null}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="short-answer">
+      <input
+        type="text"
+        value={props.text}
+        placeholder="答えを入力"
+        onChange={(e) => props.setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") props.onSubmit();
+        }}
+      />
+      <button
+        onClick={props.onSubmit}
+        disabled={props.submitting || props.text.trim().length === 0}
+      >
+        {props.submitting ? "採点中…" : "回答する"}
+      </button>
+    </div>
+  );
+}

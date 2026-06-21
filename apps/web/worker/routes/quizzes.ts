@@ -13,8 +13,9 @@ import {
   updateQuizMeta,
 } from "../db/quiz-queries";
 import { listQuizTags, setQuizTags, tagsForQuizzes } from "../db/tag-queries";
-import { parseTags } from "../domain/tag";
 import { validateForPublish } from "../domain/quiz-validation";
+import { MAX_ACCEPTED_ANSWERS, MAX_ANSWER_LEN } from "../domain/short-answer";
+import { parseTags } from "../domain/tag";
 import { apiError } from "../http/errors";
 import type { Env } from "../types";
 
@@ -22,11 +23,17 @@ const choiceInput = z.object({
   text: z.string().trim().min(1).max(500),
   isCorrect: z.boolean(),
 });
+// Draft-permissive (a draft may be incomplete). `choices` allows empty for `short`; `answer`
+// holds the short-answer Accepted Answers (ADR-0012). The publish gate enforces gradeability.
 const questionInput = z.object({
-  type: z.enum(["mcq_single", "mcq_multi"]),
+  type: z.enum(["mcq_single", "mcq_multi", "short"]),
   prompt: z.string().trim().min(1).max(2000),
   explanation: z.string().trim().max(4000).optional(),
   choices: z.array(choiceInput).max(20),
+  answer: z
+    .array(z.string().trim().min(1).max(MAX_ANSWER_LEN))
+    .max(MAX_ACCEPTED_ANSWERS)
+    .optional(),
 });
 // Draft-permissive (CONTEXT.md: a draft may be incomplete). The publish gate, not
 // this schema, enforces gradeability. `tags` is loose here (raw strings); the
@@ -58,6 +65,7 @@ function toContentInput(data: ContentData): QuizContentInput {
       prompt: q.prompt,
       explanation: q.explanation ?? null,
       choices: q.choices.map((ch) => ({ text: ch.text, isCorrect: ch.isCorrect })),
+      answer: q.answer ?? [],
     })),
   };
 }
@@ -79,6 +87,8 @@ function authorQuizJson(loaded: LoadedQuiz, tags: string[] = []) {
       prompt: q.prompt,
       explanation: q.explanation,
       position: q.position,
+      // Author editor = full fidelity: the accepted answers ARE shown to the author (short).
+      answer: q.answer,
       choices: q.choices.map((ch) => ({
         id: ch.id,
         text: ch.text,
@@ -179,6 +189,7 @@ export const quizzesRouter = new Hono<Env>()
       questions: loaded.questions.map((q) => ({
         type: q.type,
         choices: q.choices.map((ch) => ({ isCorrect: ch.isCorrect })),
+        acceptedAnswers: q.answer,
       })),
     });
     if (errors.length > 0) {

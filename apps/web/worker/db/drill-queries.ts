@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { GradedQuestion } from "../domain/grading";
+import { parseAcceptedAnswers } from "../domain/short-answer";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
@@ -14,10 +15,11 @@ import { choice, question, quiz, reviewAnswer, reviewList } from "./schema";
 // see the answer key before grading; ADR-0010) + its source quiz for display.
 export type DrillQuestion = {
   questionId: string;
-  type: "mcq_single" | "mcq_multi";
+  type: "mcq_single" | "mcq_multi" | "short";
   prompt: string;
   quizId: string;
   quizTitle: string;
+  // mcq: the choices (no is_correct). short: empty — the client renders a text input.
   choices: { id: string; text: string; position: number }[];
 };
 
@@ -79,13 +81,24 @@ export async function loadGradedQuestion(
 ): Promise<{ question: GradedQuestion; explanation: string | null } | undefined> {
   const d = db(env);
   const qrows = await d
-    .select({ id: question.id, explanation: question.explanation })
+    .select({
+      id: question.id,
+      type: question.type,
+      explanation: question.explanation,
+      answer: question.answer,
+    })
     .from(question)
     .innerJoin(quiz, eq(question.quizId, quiz.id))
     .where(and(eq(question.id, questionId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
     .limit(1);
   const q = qrows[0];
   if (!q) return undefined;
+  if (q.type === "short") {
+    return {
+      question: { id: q.id, type: "short", accept: parseAcceptedAnswers(q.answer) },
+      explanation: q.explanation,
+    };
+  }
   const choiceRows = await d
     .select({ id: choice.id, isCorrect: choice.isCorrect })
     .from(choice)
@@ -93,6 +106,7 @@ export async function loadGradedQuestion(
   return {
     question: {
       id: q.id,
+      type: q.type,
       choices: choiceRows.map((cr) => ({ id: cr.id, isCorrect: cr.isCorrect === 1 })),
     },
     explanation: q.explanation,

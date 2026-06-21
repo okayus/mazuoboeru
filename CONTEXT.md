@@ -45,6 +45,18 @@ _Avoid_: 結果表示（クイズ全体の結果と曖昧）
 [[Answer]] の正誤・スコア・正答率集計を**サーバが唯一の権威**として確定すること（純粋関数 `worker/domain/grading.ts` の strict 判定＋境界）。根拠は **(1) 正誤の単一の真実・(2) [[Immediate Feedback]]（正解/解説を回答後にのみ返す）・(3) 読みモデルの分離（公開射影 `publicQuizJson` は `is_correct`/解説を含まない）**。ランキング/公開スコアが無いので**競争的 anti-cheat ではない**（挑戦者が正解を先に見ても自分の学習を損なうだけで脅威ではない＝[[0010-server-side-grading-rationale]]）。
 _Avoid_: カンニング防止／不正防止（競争的 anti-cheat を含意するが本アプリにランキングは無い）、クライアント採点（正誤はサーバ権威）。
 
+**Short Answer (短答 / 一問一答 / short)**:
+[[Question]] の一形式で、選択肢から選ぶ代わりに**答えを自由入力でタイプ**する（例「プロセスが属する各 namespace へのポインタをまとめた構造体は？」→「nsproxy」）。採点はサーバー権威（[[Server-Side Grading]]）で、入力を [[Answer Normalization]] したうえで作者の [[Accepted Answer]] 集合と一致比較する。文中の空所を埋める穴埋め（cloze）は**別形式**（空所が複数あり得る）で本 MVP の対象外（短答を「空所1個の特殊形」として後付け拡張する想定＝[[0012-short-answer-grading-normalization]]）。
+_Avoid_: 記述式（長文を採点する含意）、穴埋め／cloze（空所を埋める別形式）、自由回答（採点不能な含意）。
+
+**Accepted Answer (許容解)**:
+[[Short Answer]] 設問について、作者が与える「正解とみなす答えの集合」。[[Answer Normalization]] 後にいずれか1つと一致すれば正解。先頭を**正準解**とし [[Immediate Feedback]] で「正解」として表示する。かな表記・シノニム・記号のあり無しといった**意味的な揺れはここに列挙**する（正規化では畳まない＝[[0012-short-answer-grading-normalization]]）。
+_Avoid_: 正解（1つに聞こえるが集合）、別解（正準解を除いた残りだけを指すが、許容解は正準解を含む全体）。
+
+**Answer Normalization (解答正規化)**:
+[[Accepted Answer]] と挑戦者の入力を比較する前に、**両辺へ同じく**かける機械的な文字の畳み込み。全角/半角・大文字小文字・前後と連続の空白といった**機械的な揺れだけ**を同一視し、それ以外（かな・シノニム等の意味的な揺れ）は畳まない＝それらは [[Accepted Answer]] に列挙して表現する。あいまい一致（編集距離・部分一致）は行わない（正規化後は完全一致）。詳細は [[0012-short-answer-grading-normalization]]。
+_Avoid_: ファジー照合／あいまい一致（編集距離は使わない）、表記ゆれ吸収（機械的な揺れのみ。意味的変種は許容解側）。
+
 **Author (作者)**:
 クイズを作ったユーザ。公開されるのは [[Display Name]] のみで email は非公開。
 _Avoid_: クリエイター、出題者、投稿者

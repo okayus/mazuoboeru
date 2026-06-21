@@ -1,12 +1,15 @@
 // Pure publish-gate validation (ADR-0002). A draft may be incomplete, but the
 // irreversible draft->published transition must guarantee the quiz is gradeable:
-// non-empty title, >=1 question, every question >=2 choices, mcq_single exactly
-// one correct choice, mcq_multi at least one. No I/O here — the route loads the
-// rows and calls this. Returns a list of error codes (empty = publishable).
+// non-empty title, >=1 question, and per type — mcq needs >=2 choices with the right
+// correct-count, short needs >=1 non-empty accepted answer (ADR-0012). No I/O here — the
+// route loads the rows and calls this. Returns a list of error codes (empty = publishable).
 
 export type QuestionShape = {
-  type: "mcq_single" | "mcq_multi";
+  type: "mcq_single" | "mcq_multi" | "short";
+  // mcq only (empty for short).
   choices: ReadonlyArray<{ isCorrect: boolean }>;
+  // short only (the author's raw accepted answers; empty/absent for mcq).
+  acceptedAnswers?: readonly string[];
 };
 
 export type PublishCheckInput = {
@@ -19,7 +22,8 @@ export type PublishErrorCode =
   | "at_least_one_question"
   | "question_needs_two_choices"
   | "single_needs_exactly_one_correct"
-  | "multi_needs_at_least_one_correct";
+  | "multi_needs_at_least_one_correct"
+  | "short_needs_answer";
 
 export type PublishError = {
   code: PublishErrorCode;
@@ -33,6 +37,11 @@ export function validateForPublish(quiz: PublishCheckInput): PublishError[] {
   if (quiz.questions.length === 0) errors.push({ code: "at_least_one_question" });
 
   quiz.questions.forEach((q, i) => {
+    if (q.type === "short") {
+      const hasAnswer = (q.acceptedAnswers ?? []).some((a) => a.trim().length > 0);
+      if (!hasAnswer) errors.push({ code: "short_needs_answer", questionIndex: i });
+      return;
+    }
     if (q.choices.length < 2) {
       errors.push({ code: "question_needs_two_choices", questionIndex: i });
     }
