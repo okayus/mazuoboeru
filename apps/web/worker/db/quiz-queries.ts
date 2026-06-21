@@ -72,7 +72,31 @@ export async function loadQuizWithContent(
   return { quiz: q, questions };
 }
 
-function contentStatements(
+// D1 caps bound parameters at 100 PER STATEMENT (not per batch):
+// https://developers.cloudflare.com/d1/platform/limits/. A multi-row INSERT of N
+// rows binds N * (columns per row) params, so a quiz with enough questions/choices
+// overflowed the cap as a single INSERT and D1 rejected the query (the route caught
+// nothing and returned a bare 500). We split the rows into chunks that each stay
+// within the cap; all chunks still go into one d.batch() (callers below), which
+// remains atomic — D1 applies the limit per statement, not per batch.
+const D1_MAX_BOUND_PARAMS = 100;
+// Params bound per row = number of columns in each values() shape below. Keep these
+// in sync if a column is added to the question / choice insert.
+const QUESTION_PARAMS_PER_ROW = 6; // id, quizId, type, prompt, explanation, position
+const CHOICE_PARAMS_PER_ROW = 5; // id, questionId, text, isCorrect, position
+const QUESTION_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / QUESTION_PARAMS_PER_ROW); // 16
+const CHOICE_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / CHOICE_PARAMS_PER_ROW); // 20
+
+// Split rows into fixed-size, order-preserving chunks. chunk([], n) === [].
+export function chunk<T>(rows: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+  return out;
+}
+
+// Build the INSERT statements for a quiz's questions + choices, chunked so each
+// statement stays within D1's per-statement bound-param cap. Exported for unit tests.
+export function contentStatements(
   d: ReturnType<typeof db>,
   quizId: string,
   input: QuizContentInput,
@@ -100,8 +124,12 @@ function contentStatements(
     });
   });
   const stmts: BatchItem<"sqlite">[] = [];
-  if (questionRows.length) stmts.push(d.insert(question).values(questionRows));
-  if (choiceRows.length) stmts.push(d.insert(choice).values(choiceRows));
+  for (const rows of chunk(questionRows, QUESTION_ROWS_PER_STMT)) {
+    stmts.push(d.insert(question).values(rows));
+  }
+  for (const rows of chunk(choiceRows, CHOICE_ROWS_PER_STMT)) {
+    stmts.push(d.insert(choice).values(rows));
+  }
   return stmts;
 }
 
