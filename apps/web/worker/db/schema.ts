@@ -128,23 +128,30 @@ export const question = sqliteTable(
     quizId: text("quiz_id")
       .notNull()
       .references(() => quiz.id, { onDelete: "cascade" }),
-    type: text("type", { enum: ["mcq_single", "mcq_multi"] }).notNull(),
+    type: text("type", { enum: ["mcq_single", "mcq_multi", "short"] }).notNull(),
     prompt: text("prompt").notNull(), // Markdown, sanitized at render
     explanation: text("explanation"), // revealed only after grading
+    // Short-answer payload: JSON {"accept":[raw,...]} (ADR-0012). NULL for mcq. The
+    // accepted answers are graded server-side after Answer Normalization; never sent in
+    // the public projection (like is_correct). cloze later: {"blanks":[{"accept":[...]}]}.
+    answer: text("answer"),
     position: integer("position").notNull(),
   },
   (t) => [index("idx_question_quiz").on(t.quizId, t.position)],
 );
 
-// Part of the quiz aggregate (cascades from question). is_correct must NEVER be
-// sent to the client before grading (anti-cheat — grading is server-authoritative).
+// Part of the quiz aggregate. question_id is NO ACTION (not CASCADE): `question` is rebuilt
+// on every question-type addition (CHECK widen — ADR-0012), and a CASCADE child would be
+// cascade-deleted by that DROP on D1 (cloudflare-d1-drizzle-migration skill, migration 0008).
+// Cleanup of choices on question delete is therefore explicit in app code (replaceDraftContent).
+// is_correct must NEVER be sent to the client before grading (grading is server-authoritative).
 export const choice = sqliteTable(
   "choice",
   {
     id: text("id").primaryKey(),
     questionId: text("question_id")
       .notNull()
-      .references(() => question.id, { onDelete: "cascade" }),
+      .references(() => question.id),
     text: text("text").notNull(),
     isCorrect: integer("is_correct").notNull(), // 0|1
     position: integer("position").notNull(),
@@ -280,9 +287,10 @@ export const tagEdge = sqliteTable(
 
 // A user's private, question-level Review List — the manual pool of questions to
 // revisit (UI label "my hot list" — CONTEXT.md Review List; replaces the quiz-level
-// favorite, ADR-0008). user_id CASCADEs (user-owned); question_id CASCADEs (part of
-// the quiz aggregate, fires only on a Phase 4 hard delete — soft-deleted / unpublished
-// quizzes are filtered at read time). created_at orders the list (most recent first).
+// favorite, ADR-0008). user_id CASCADEs (user-owned). question_id is NO ACTION (not CASCADE)
+// so the `question` rebuild on each question-type addition can't cascade-delete the list
+// (migration 0008; cloudflare-d1-drizzle-migration skill); orphaned rows are filtered at read
+// time anyway (only published, non-deleted quizzes show). created_at orders the list (newest).
 export const reviewList = sqliteTable(
   "review_list",
   {
@@ -291,7 +299,7 @@ export const reviewList = sqliteTable(
       .references(() => user.id, { onDelete: "cascade" }),
     questionId: text("question_id")
       .notNull()
-      .references(() => question.id, { onDelete: "cascade" }),
+      .references(() => question.id),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

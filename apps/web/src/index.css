@@ -219,6 +219,18 @@ select {
   cursor: pointer;
 }
 
+.short-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+
+.short-answer.answered {
+  gap: 4px;
+}
+
 .choice-correct {
   background: #ecfdf5;
   color: var(--ok);

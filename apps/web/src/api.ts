@@ -45,14 +45,19 @@ export type DrillPool = Ok<typeof client.api.drill.$get>;
 export type DrillItem = DrillPool["items"][number];
 
 // ---- Request inputs (hand-written; these are what the client SENDS) ----
-export type QuestionType = "mcq_single" | "mcq_multi";
+export type QuestionType = "mcq_single" | "mcq_multi" | "short";
 export type ChoiceInput = { text: string; isCorrect: boolean };
 export type QuestionInput = {
   type: QuestionType;
   prompt: string;
   explanation?: string;
+  // mcq: the choices (empty for short). short: `answer` = the Accepted Answers (ADR-0012).
   choices: ChoiceInput[];
+  answer?: string[];
 };
+
+// One submission for either question kind: choiceIds for mcq, text for short.
+export type AnswerSubmission = { choiceIds: string[] } | { text: string };
 export type QuizInput = {
   title: string;
   description?: string;
@@ -132,10 +137,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ quizId }),
     }),
-  submitAnswer: (attemptId: string, questionId: string, choiceIds: string[]) =>
+  submitAnswer: (attemptId: string, questionId: string, submission: AnswerSubmission) =>
     request<Ok<(typeof client.api.attempts)[":attemptId"]["answers"]["$post"]>>(
       `/attempts/${attemptId}/answers`,
-      { method: "POST", body: JSON.stringify({ questionId, choiceIds }) },
+      { method: "POST", body: JSON.stringify({ questionId, ...submission }) },
     ),
 
   listTokens: () => request<Ok<typeof client.api.tokens.$get>>("/tokens"),
@@ -170,9 +175,9 @@ export const api = {
     ),
 
   drill: () => request<Ok<typeof client.api.drill.$get>>("/drill"),
-  submitDrillAnswer: (questionId: string, choiceIds: string[]) =>
+  submitDrillAnswer: (questionId: string, submission: AnswerSubmission) =>
     request<Ok<typeof client.api.drill.answers.$post>>("/drill/answers", {
       method: "POST",
-      body: JSON.stringify({ questionId, choiceIds }),
+      body: JSON.stringify({ questionId, ...submission }),
     }),
 };

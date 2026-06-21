@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { type GradedQuestion, gradeQuestion, gradeSelection } from "./grading";
 
+const sel = (choiceIds: string[]) => ({ kind: "selection" as const, choiceIds });
+const txt = (text: string) => ({ kind: "text" as const, text });
+
 describe("gradeSelection (strict set equality)", () => {
   it("single correct: exact match is correct", () => {
     expect(gradeSelection(["a"], ["a"])).toBe(true);
@@ -37,9 +40,10 @@ describe("gradeSelection (strict set equality)", () => {
   });
 });
 
-describe("gradeQuestion (validate + grade, shared core)", () => {
+describe("gradeQuestion — mcq (validate + grade, shared core)", () => {
   const q: GradedQuestion = {
     id: "q1",
+    type: "mcq_multi",
     choices: [
       { id: "a", isCorrect: true },
       { id: "b", isCorrect: false },
@@ -48,24 +52,53 @@ describe("gradeQuestion (validate + grade, shared core)", () => {
   };
 
   it("undefined question → unknown_question", () => {
-    expect(gradeQuestion(undefined, ["a"]).kind).toBe("unknown_question");
+    expect(gradeQuestion(undefined, sel(["a"])).kind).toBe("unknown_question");
   });
 
   it("a selected id not on the question → invalid_choice", () => {
-    expect(gradeQuestion(q, ["a", "zzz"]).kind).toBe("invalid_choice");
+    expect(gradeQuestion(q, sel(["a", "zzz"])).kind).toBe("invalid_choice");
   });
 
-  it("correct multi selection → graded isCorrect=true with all correct ids", () => {
-    const g = gradeQuestion(q, ["c", "a"]);
+  it("a text submission to an mcq question → type_mismatch", () => {
+    expect(gradeQuestion(q, txt("a")).kind).toBe("type_mismatch");
+  });
+
+  it("correct multi selection → graded isCorrect=true, reveal lists every correct id", () => {
+    const g = gradeQuestion(q, sel(["c", "a"]));
     expect(g).toMatchObject({ kind: "graded", isCorrect: true });
-    if (g.kind === "graded") expect([...g.correctChoiceIds].sort()).toEqual(["a", "c"]);
+    if (g.kind === "graded" && g.reveal.type !== "short") {
+      expect([...g.reveal.correctChoiceIds].sort()).toEqual(["a", "c"]);
+    }
   });
 
   it("incomplete multi selection → graded isCorrect=false (no partial credit)", () => {
-    expect(gradeQuestion(q, ["a"])).toMatchObject({ kind: "graded", isCorrect: false });
+    expect(gradeQuestion(q, sel(["a"]))).toMatchObject({ kind: "graded", isCorrect: false });
   });
 
   it("empty selection → graded isCorrect=false", () => {
-    expect(gradeQuestion(q, [])).toMatchObject({ kind: "graded", isCorrect: false });
+    expect(gradeQuestion(q, sel([]))).toMatchObject({ kind: "graded", isCorrect: false });
+  });
+});
+
+describe("gradeQuestion — short (normalize + accepted-list match)", () => {
+  const q: GradedQuestion = { id: "s1", type: "short", accept: ["nsproxy", "struct nsproxy"] };
+
+  it("a normalized match → graded isCorrect=true, reveal carries accepted answers", () => {
+    const g = gradeQuestion(q, txt(" NSProxy "));
+    expect(g).toMatchObject({ kind: "graded", isCorrect: true });
+    if (g.kind === "graded" && g.reveal.type === "short") {
+      expect(g.reveal.acceptedAnswers).toEqual(["nsproxy", "struct nsproxy"]);
+    }
+  });
+
+  it("a non-match → graded isCorrect=false", () => {
+    expect(gradeQuestion(q, txt("task_struct"))).toMatchObject({
+      kind: "graded",
+      isCorrect: false,
+    });
+  });
+
+  it("a selection submission to a short question → type_mismatch", () => {
+    expect(gradeQuestion(q, sel(["x"])).kind).toBe("type_mismatch");
   });
 });

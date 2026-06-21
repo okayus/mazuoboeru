@@ -1,18 +1,23 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { parseAcceptedAnswers, serializeAcceptedAnswers } from "../domain/short-answer";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
 import { choice, question, quiz, type Quiz } from "./schema";
 
+export type QuizQuestionType = "mcq_single" | "mcq_multi" | "short";
+
 export type QuizContentInput = {
   title: string;
   description: string | null;
   questions: Array<{
-    type: "mcq_single" | "mcq_multi";
+    type: QuizQuestionType;
     prompt: string;
     explanation: string | null;
     choices: Array<{ text: string; isCorrect: boolean }>;
+    // Raw accepted answers for `short` (ADR-0012); empty for mcq.
+    answer: string[];
   }>;
 };
 
@@ -24,11 +29,13 @@ export type LoadedChoice = {
 };
 export type LoadedQuestion = {
   id: string;
-  type: "mcq_single" | "mcq_multi";
+  type: QuizQuestionType;
   prompt: string;
   explanation: string | null;
   position: number;
   choices: LoadedChoice[];
+  // Raw accepted answers for `short` (parsed from question.answer); empty for mcq.
+  answer: string[];
 };
 export type LoadedQuiz = { quiz: Quiz; questions: LoadedQuestion[] };
 
@@ -68,6 +75,7 @@ export async function loadQuizWithContent(
     explanation: r.explanation,
     position: r.position,
     choices: byQuestion.get(r.id) ?? [],
+    answer: parseAcceptedAnswers(r.answer),
   }));
   return { quiz: q, questions };
 }
@@ -82,9 +90,9 @@ export async function loadQuizWithContent(
 const D1_MAX_BOUND_PARAMS = 100;
 // Params bound per row = number of columns in each values() shape below. Keep these
 // in sync if a column is added to the question / choice insert.
-const QUESTION_PARAMS_PER_ROW = 6; // id, quizId, type, prompt, explanation, position
+const QUESTION_PARAMS_PER_ROW = 7; // id, quizId, type, prompt, explanation, answer, position
 const CHOICE_PARAMS_PER_ROW = 5; // id, questionId, text, isCorrect, position
-const QUESTION_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / QUESTION_PARAMS_PER_ROW); // 16
+const QUESTION_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / QUESTION_PARAMS_PER_ROW); // 14
 const CHOICE_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / CHOICE_PARAMS_PER_ROW); // 20
 
 // Split rows into fixed-size, order-preserving chunks. chunk([], n) === [].
@@ -111,6 +119,8 @@ export function contentStatements(
       type: qn.type,
       prompt: qn.prompt,
       explanation: qn.explanation,
+      // short stores its accepted answers as JSON; mcq has no answer key here (NULL).
+      answer: qn.type === "short" ? serializeAcceptedAnswers(qn.answer) : null,
       position: qi,
     });
     qn.choices.forEach((ch, ci) => {
@@ -178,8 +188,11 @@ export async function replaceDraftContent(
       .set({ title: input.title, description: input.description, updatedAt: now })
       .where(eq(quiz.id, quizId)),
   ];
-  // choices cascade-delete with their question, so deleting questions is enough.
+  // choice is NO ACTION on question (migration 0008), so delete choices explicitly before
+  // their questions (same batch = atomic). No review_list rows can reference these: a draft's
+  // questions aren't published, so nothing is in anyone's Review List yet.
   if (existingIds.length) {
+    stmts.push(d.delete(choice).where(inArray(choice.questionId, existingIds)));
     stmts.push(d.delete(question).where(inArray(question.id, existingIds)));
   }
   for (const s of contentStatements(d, quizId, input)) stmts.push(s);

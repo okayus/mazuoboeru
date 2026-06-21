@@ -3,13 +3,15 @@ import { z } from "zod";
 import { requireAuth, requireUser } from "../auth/middleware";
 import { userQuestionStats } from "../db/attempt-queries";
 import { loadDrillPool, loadGradedQuestion, recordReviewAnswer } from "../db/drill-queries";
-import { gradeQuestion } from "../domain/grading";
+import { gradeQuestion, type Submission } from "../domain/grading";
+import { MAX_ANSWER_LEN } from "../domain/short-answer";
 import { apiError } from "../http/errors";
 import type { Env } from "../types";
 
 const answerSchema = z.object({
   questionId: z.string().min(1),
-  choiceIds: z.array(z.string().min(1)).max(20),
+  choiceIds: z.array(z.string().min(1)).max(20).optional(),
+  text: z.string().max(MAX_ANSWER_LEN).optional(),
 });
 
 // Drill over the Review List pool (session-only, private — CONTEXT.md Drill; ADR-0008).
@@ -42,9 +44,14 @@ export const drillRouter = new Hono<Env>()
     const parsed = answerSchema.safeParse(body);
     if (!parsed.success) return c.json(apiError("invalid_body"), 400);
 
+    const submission: Submission =
+      parsed.data.text !== undefined
+        ? { kind: "text", text: parsed.data.text }
+        : { kind: "selection", choiceIds: parsed.data.choiceIds ?? [] };
     const loaded = await loadGradedQuestion(c.env, parsed.data.questionId);
-    const graded = gradeQuestion(loaded?.question, parsed.data.choiceIds);
+    const graded = gradeQuestion(loaded?.question, submission);
     if (graded.kind === "unknown_question") return c.json(apiError("unknown_question"), 400);
+    if (graded.kind === "type_mismatch") return c.json(apiError("wrong_answer_type"), 400);
     if (graded.kind === "invalid_choice") return c.json(apiError("invalid_choice"), 400);
 
     await recordReviewAnswer(c.env, {
@@ -55,7 +62,7 @@ export const drillRouter = new Hono<Env>()
 
     return c.json({
       isCorrect: graded.isCorrect,
-      correctChoiceIds: graded.correctChoiceIds,
+      reveal: graded.reveal,
       explanation: loaded?.explanation ?? null,
     });
   });

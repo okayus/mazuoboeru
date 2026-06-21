@@ -1,9 +1,11 @@
 import type { LoadedQuiz } from "../db/quiz-queries";
 
-// Challenge-facing projection of a quiz. NEVER includes is_correct or explanation:
-// those are revealed per-answer only after the server grades a submission. This is a
-// clean read-model split (the answer key belongs to the graded response, not the
-// question), NOT a competitive anti-cheat boundary — there is no ranking (ADR-0010).
+// Challenge-facing projection of a quiz. NEVER includes is_correct, explanation, or the
+// short-answer `answer` key: those are revealed per-answer only after the server grades a
+// submission. This is a clean read-model split (the answer key belongs to the graded
+// response, not the question), NOT a competitive anti-cheat boundary — no ranking (ADR-0010).
+// `type` tells the client how to render (mcq choices vs a short-answer text input); short
+// questions carry an empty `choices` array and no answer.
 export type PublicQuizDTO = {
   id: string;
   title: string;
@@ -13,7 +15,7 @@ export type PublicQuizDTO = {
   tags: string[];
   questions: {
     id: string;
-    type: "mcq_single" | "mcq_multi";
+    type: "mcq_single" | "mcq_multi" | "short";
     prompt: string;
     position: number;
     choices: { id: string; text: string; position: number }[];

@@ -25,6 +25,7 @@ function makeInput(nQuestions: number, choicesPer: number): QuizContentInput {
         text: `c${j}`,
         isCorrect: j === 0,
       })),
+      answer: [],
     })),
   };
 }
@@ -47,29 +48,47 @@ describe("contentStatements — D1 100-bound-param chunking", () => {
     const stmts = contentStatements(d, "quiz-1", makeInput(100, 20));
     for (const s of stmts) expect(paramsOf(s)).toBeLessThanOrEqual(100);
     expect(stmts.length).toBeGreaterThan(2); // proves it actually chunked
-    // No rows dropped or duplicated across chunks: questions*6 + choices*5.
-    expect(totalParams(stmts)).toBe(100 * 6 + 2000 * 5);
+    // No rows dropped or duplicated across chunks: questions*7 (incl. answer) + choices*5.
+    expect(totalParams(stmts)).toBe(100 * 7 + 2000 * 5);
   });
 
   it("fixes the exact prod repro: 6 questions x 5 choices (30 > 20) no longer overflows", () => {
     // Measured in prod 2026-06-20: 25 choices = 125 params -> 500. 30 choices here.
     const stmts = contentStatements(d, "quiz-1", makeInput(6, 5));
     for (const s of stmts) expect(paramsOf(s)).toBeLessThanOrEqual(100);
-    expect(totalParams(stmts)).toBe(6 * 6 + 30 * 5);
+    expect(totalParams(stmts)).toBe(6 * 7 + 30 * 5);
   });
 
   it("boundary: 20 choices = exactly 100 params (one statement); 21 splits the choice INSERT", () => {
-    // makeInput(1, n): one question statement (6 params) + the choice statement(s).
+    // makeInput(1, n): one question statement (7 params: + answer) + the choice statement(s).
     expect(
       contentStatements(d, "q", makeInput(1, 20))
         .map(paramsOf)
         .sort((a, b) => a - b),
-    ).toEqual([6, 100]);
+    ).toEqual([7, 100]);
     expect(
       contentStatements(d, "q", makeInput(1, 21))
         .map(paramsOf)
         .sort((a, b) => a - b),
-    ).toEqual([5, 6, 100]);
+    ).toEqual([5, 7, 100]);
+  });
+
+  it("a short question: one question INSERT carries the answer JSON, no choice INSERT", () => {
+    const stmts = contentStatements(d, "q", {
+      title: "t",
+      description: null,
+      questions: [
+        {
+          type: "short",
+          prompt: "p",
+          explanation: null,
+          choices: [],
+          answer: ["nsproxy", "struct nsproxy"],
+        },
+      ],
+    });
+    expect(stmts.length).toBe(1); // question only — no choices
+    expect(paramsOf(stmts[0])).toBe(7);
   });
 
   it("emits no statements for an empty draft (0 questions)", () => {

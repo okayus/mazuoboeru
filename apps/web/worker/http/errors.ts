@@ -21,6 +21,7 @@ export const API_ERROR_CODES = [
   "target_not_found",
   "unauthorized",
   "unknown_question",
+  "wrong_answer_type",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
