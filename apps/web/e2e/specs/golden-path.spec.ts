@@ -56,5 +56,7 @@ test("author publishes a quiz; another account challenges it and is server-grade
   await question.getByRole("button", { name: "回答する" }).click();
 
   await expect(question.getByText("正解", { exact: true })).toBeVisible();
-  await expect(page.locator(".progress")).toContainText("採点: 1 / 1 正解");
+  // No per-run score any more (the Attempt entity is retired — ADR-0013). The quiz-scoped
+  // Drill shows an advance affordance instead; on the last (here only) question it reads "完了".
+  await expect(question.getByRole("button", { name: "完了" })).toBeVisible();
 });

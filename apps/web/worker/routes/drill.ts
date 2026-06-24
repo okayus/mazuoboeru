@@ -2,7 +2,13 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth, requireUser } from "../auth/middleware";
 import { userQuestionStats } from "../db/attempt-queries";
-import { loadDrillPool, loadGradedQuestion, recordReviewAnswer } from "../db/drill-queries";
+import {
+  loadDrillPool,
+  loadGradedQuestion,
+  loadQuizDrillPool,
+  recordReviewAnswer,
+} from "../db/drill-queries";
+import { reviewListIdsAmong } from "../db/review-list-queries";
 import { gradeQuestion, type Submission } from "../domain/grading";
 import { MAX_ANSWER_LEN } from "../domain/short-answer";
 import { apiError } from "../http/errors";
@@ -14,11 +20,12 @@ const answerSchema = z.object({
   text: z.string().max(MAX_ANSWER_LEN).optional(),
 });
 
-// Drill over the Review List pool (session-only, private — CONTEXT.md Drill; ADR-0008).
-// Stateless: GET returns the whole pool (whole-pool fetch); the client walks it one question
-// at a time and POSTs each answer; the server only grades + appends a review_answer — no
-// attempt / score / completion. Graduating ("覚えた") reuses DELETE /review-list/:questionId;
-// "まだ" (keep) is a client-side no-op. Method-chained for hc<AppType> inference (ADR-0011).
+// Drill (session-only, private — CONTEXT.md Drill; ADR-0008/0013). Two pools: the Review List
+// (GET /) and one whole quiz (GET /quiz/:quizId — the "挑戦" entry, ADR-0013). Stateless: each
+// GET returns the whole pool (whole-pool fetch); the client walks it one question at a time and
+// POSTs each answer; the server only grades + appends an Answer — no attempt / score / completion.
+// Review List graduating ("覚えた") reuses DELETE /review-list/:questionId; "まだ" (keep) is a
+// client-side no-op. Method-chained for hc<AppType> inference (ADR-0011).
 export const drillRouter = new Hono<Env>()
   .use("*", requireAuth)
 
@@ -33,6 +40,27 @@ export const drillRouter = new Hono<Env>()
       items.map((i) => i.questionId),
     );
     return c.json({ items, questionStats });
+  })
+
+  // The quiz-scoped Drill pool — every question of one published quiz (the "挑戦" entry point;
+  // ADR-0013) in author position order (the client shuffles per mount), plus the caller's
+  // per-question accuracy and which of these questions are already in their Review List (for the
+  // ☆ toggle). Never is_correct. 404 when the quiz isn't currently published & not deleted.
+  .get("/quiz/:quizId", async (c) => {
+    const user = requireUser(c);
+    const pool = await loadQuizDrillPool(c.env, c.req.param("quizId"));
+    if (!pool) return c.json(apiError("not_found"), 404);
+    const questionIds = pool.items.map((i) => i.questionId);
+    const [questionStats, reviewListQuestionIds] = await Promise.all([
+      userQuestionStats(c.env, user.id, questionIds),
+      reviewListIdsAmong(c.env, user.id, questionIds),
+    ]);
+    return c.json({
+      quizTitle: pool.quizTitle,
+      items: pool.items,
+      questionStats,
+      reviewListQuestionIds,
+    });
   })
 
   // Grade one drill answer → append review_answer → immediate feedback (correct ids +
