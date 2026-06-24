@@ -95,8 +95,8 @@ export const apiToken = sqliteTable(
 // Quizzes are always public. status is draft|published|hidden (no `private`),
 // draft->published is irreversible, hidden is moderator-only. deleted_at is soft
 // delete. Public queries always filter status='published' AND deleted_at IS NULL.
-// author_id intentionally does NOT cascade: a quiz outlives nothing of the author's
-// here, and others' attempts reference it — author hard-delete is a Phase 4 flow.
+// author_id intentionally does NOT cascade: a quiz outlives the author's account here
+// (other users' answers reference its questions) — author hard-delete is a Phase 4 flow.
 export const quiz = sqliteTable(
   "quiz",
   {
@@ -157,49 +157,6 @@ export const choice = sqliteTable(
     position: integer("position").notNull(),
   },
   (t) => [index("idx_choice_question").on(t.questionId, t.position)],
-);
-
-// A user's run at a quiz. Private to the user. quiz_id does NOT cascade: attempt
-// history is preserved independently of the quiz lifecycle (quiz uses soft delete).
-export const attempt = sqliteTable(
-  "attempt",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    quizId: text("quiz_id")
-      .notNull()
-      .references(() => quiz.id),
-    startedAt: integer("started_at").notNull(),
-    finishedAt: integer("finished_at"), // set once all questions answered
-    score: integer("score"),
-    total: integer("total"),
-  },
-  (t) => [
-    index("idx_attempt_user_quiz").on(t.userId, t.quizId),
-    index("idx_attempt_quiz").on(t.quizId),
-  ],
-);
-
-// One graded submission per question per attempt (enforced by the unique index).
-// is_correct is frozen at write time and never recomputed, even on quiz edits.
-// question_id does NOT cascade: historical answers survive question changes.
-export const attemptAnswer = sqliteTable(
-  "attempt_answer",
-  {
-    id: text("id").primaryKey(),
-    attemptId: text("attempt_id")
-      .notNull()
-      .references(() => attempt.id, { onDelete: "cascade" }),
-    questionId: text("question_id")
-      .notNull()
-      .references(() => question.id),
-    response: text("response").notNull(), // JSON array of selected choice ids
-    isCorrect: integer("is_correct").notNull(), // 0|1
-    answeredAt: integer("answered_at").notNull(),
-  },
-  (t) => [uniqueIndex("idx_attempt_answer_unique").on(t.attemptId, t.questionId)],
 );
 
 // Moderation report channel (Phase 1 MVP). A user reports a quiz/question/user with
@@ -308,16 +265,17 @@ export const reviewList = sqliteTable(
   ],
 );
 
-// A user's Drill answers — the append-only log of re-answering Review List questions
-// (CONTEXT.md Drill; ADR-0008). Unlike attempt_answer there is NO uniqueness guard: every
-// drill of a question is a new row (drill the same question many times), and there is no
-// attempt / score / completion (Drill is stateless — ADR-0008). is_correct is server-graded
-// (gradeQuestion) and frozen. Feeds ALL private-dashboard metrics uniformly — streak /
-// activity / accuracy, per-tag via a question->quiz join at read time (ADR-0006, 2026-06-19).
-// user_id CASCADEs (user-owned); question_id does NOT cascade (history survives question
-// edits, like attempt_answer). idx (user_id, answered_at) drives streak / activity.
-export const reviewAnswer = sqliteTable(
-  "review_answer",
+// The single flat Answer table — every graded Answer a user submits (CONTEXT.md Answer;
+// ADR-0013). Renamed from review_answer (migration 0009), which already had this exact shape;
+// the historical attempt_answer rows are migrated in here in 0010 (step 2), after which `answer`
+// is the SOLE source for the dashboard. Append-only: NO uniqueness guard (answer a question many
+// times, each a new row), and no attempt / score / completion (the Attempt entity is retired —
+// ADR-0013). is_correct is server-graded (gradeQuestion) and frozen. Feeds ALL private-dashboard
+// metrics uniformly — streak / activity / accuracy, per-tag & per-quiz via a question->quiz join
+// at read time (ADR-0006). user_id CASCADEs (user-owned); question_id does NOT cascade (history
+// survives question edits). idx (user_id, answered_at) drives streak / activity.
+export const answer = sqliteTable(
+  "answer",
   {
     id: text("id").primaryKey(),
     userId: text("user_id")
@@ -329,7 +287,7 @@ export const reviewAnswer = sqliteTable(
     isCorrect: integer("is_correct").notNull(), // 0|1, server-graded
     answeredAt: integer("answered_at").notNull(),
   },
-  (t) => [index("idx_review_answer_user_answered").on(t.userId, t.answeredAt)],
+  (t) => [index("idx_answer_user_answered").on(t.userId, t.answeredAt)],
 );
 
 // Inferred row types for use across the worker (query results / inserts).
@@ -340,10 +298,8 @@ export type ApiToken = typeof apiToken.$inferSelect;
 export type Quiz = typeof quiz.$inferSelect;
 export type Question = typeof question.$inferSelect;
 export type Choice = typeof choice.$inferSelect;
-export type Attempt = typeof attempt.$inferSelect;
-export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
 export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
 export type TagEdge = typeof tagEdge.$inferSelect;
 export type ReviewListRow = typeof reviewList.$inferSelect;
-export type ReviewAnswer = typeof reviewAnswer.$inferSelect;
+export type Answer = typeof answer.$inferSelect;

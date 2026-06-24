@@ -1,12 +1,12 @@
 import useSWR from "swr";
 import { api } from "./api";
 import { navigate, type Route, useRoute } from "./useRoute";
-import { Challenge } from "./views/Challenge";
 import { CreateQuiz } from "./views/CreateQuiz";
 import { Dashboard } from "./views/Dashboard";
 import { Drill } from "./views/Drill";
 import { Login } from "./views/Login";
 import { MyQuizzes } from "./views/MyQuizzes";
+import { QuizDrill } from "./views/QuizDrill";
 import { ReviewList } from "./views/ReviewList";
 import { Settings } from "./views/Settings";
 import { Timeline } from "./views/Timeline";
@@ -73,7 +73,7 @@ function View({ route }: { route: Route }) {
     case "drill":
       return <Drill />;
     case "challenge":
-      return <Challenge quizId={route.quizId} />;
+      return <QuizDrill quizId={route.quizId} />;
     case "settings":
       return <Settings />;
     case "timeline":

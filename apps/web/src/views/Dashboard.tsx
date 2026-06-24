@@ -36,7 +36,7 @@ export function Dashboard() {
             <p>
               連続学習: <strong>{data.streak.current}</strong> 日（最長 {data.streak.longest} 日）
             </p>
-            <p className="meta">挑戦したクイズ: {data.quizzesAttempted} 件</p>
+            <p className="meta">挑戦したクイズ: {data.quizzes.length} 件</p>
           </div>
 
           <h3>タグ別の正答率</h3>
@@ -58,6 +58,15 @@ export function Dashboard() {
               ) : null}
             </ul>
           )}
+          <h3>クイズ別の正答率</h3>
+          <ul className="quiz-list">
+            {data.quizzes.map((q) => (
+              <li key={q.quizId} className="card">
+                <a href={`#/quiz/${q.quizId}`}>{q.quizTitle}</a>: {pct(q.correct, q.total)}（
+                {q.correct} / {q.total}）
+              </li>
+            ))}
+          </ul>
           <p className="meta">
             ※ 再挑戦も含むこれまでの全回答での平均（活動量ベース）。成績は本人にのみ表示されます。
           </p>

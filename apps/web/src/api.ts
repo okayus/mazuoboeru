@@ -27,10 +27,6 @@ export type PublicQuiz = Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>["
 export type PublicQuestion = PublicQuiz["questions"][number];
 export type PublicChoice = PublicQuestion["choices"][number];
 
-export type AttemptState = Ok<typeof client.api.attempts.$post>;
-export type AnswerDetail = AttemptState["answers"][number];
-export type AnswerResult = Ok<(typeof client.api.attempts)[":attemptId"]["answers"]["$post"]>;
-
 export type AuthorQuizSummary = Ok<typeof client.api.quizzes.mine.$get>["quizzes"][number];
 
 export type TokenSummary = Ok<typeof client.api.tokens.$get>["tokens"][number];
@@ -43,6 +39,9 @@ export type ReviewListItem = Ok<(typeof client.api)["review-list"]["$get"]>["ite
 
 export type DrillPool = Ok<typeof client.api.drill.$get>;
 export type DrillItem = DrillPool["items"][number];
+
+export type QuizDrillPool = Ok<(typeof client.api.drill.quiz)[":quizId"]["$get"]>;
+export type QuizDrillItem = QuizDrillPool["items"][number];
 
 // ---- Request inputs (hand-written; these are what the client SENDS) ----
 export type QuestionType = "mcq_single" | "mcq_multi" | "short";
@@ -132,17 +131,6 @@ export const api = {
       body: JSON.stringify({ tags }),
     }),
 
-  startAttempt: (quizId: string) =>
-    request<Ok<typeof client.api.attempts.$post>>("/attempts", {
-      method: "POST",
-      body: JSON.stringify({ quizId }),
-    }),
-  submitAnswer: (attemptId: string, questionId: string, submission: AnswerSubmission) =>
-    request<Ok<(typeof client.api.attempts)[":attemptId"]["answers"]["$post"]>>(
-      `/attempts/${attemptId}/answers`,
-      { method: "POST", body: JSON.stringify({ questionId, ...submission }) },
-    ),
-
   listTokens: () => request<Ok<typeof client.api.tokens.$get>>("/tokens"),
   createToken: (name: string) =>
     request<Ok<typeof client.api.tokens.$post>>("/tokens", {
@@ -175,6 +163,8 @@ export const api = {
     ),
 
   drill: () => request<Ok<typeof client.api.drill.$get>>("/drill"),
+  quizDrill: (quizId: string) =>
+    request<Ok<(typeof client.api.drill.quiz)[":quizId"]["$get"]>>(`/drill/quiz/${quizId}`),
   submitDrillAnswer: (questionId: string, submission: AnswerSubmission) =>
     request<Ok<typeof client.api.drill.answers.$post>>("/drill/answers", {
       method: "POST",

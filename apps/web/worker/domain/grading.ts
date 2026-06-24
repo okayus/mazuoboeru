@@ -6,8 +6,8 @@
 //     correct, enforced at publish) and multi.
 //   - short: a typed answer is correct iff it matches an Accepted Answer after Answer
 //     Normalization (see ./short-answer; ADR-0012).
-// Shared by the attempt path (decideAnswer wraps this) and the Drill path (calls this
-// directly — no attempt, ADR-0008). See docs/features.md / ADR-0002 / ADR-0010.
+// Shared by the quiz-scoped 挑戦 and the Review List Drill — both call this directly
+// (stateless, append-only; ADR-0008/0013). See docs/features.md / ADR-0002 / ADR-0010.
 
 import { gradeShortAnswer } from "./short-answer";
 

@@ -1,10 +1,10 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sum } from "drizzle-orm";
 import type { GradedQuestion } from "../domain/grading";
 import { parseAcceptedAnswers } from "../domain/short-answer";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
-import { choice, question, quiz, reviewAnswer, reviewList } from "./schema";
+import { answer, choice, question, quiz, reviewList } from "./schema";
 
 // Drill = re-answering Review List questions one at a time (CONTEXT.md Drill; ADR-0008).
 // These queries serve the stateless drill loop: load the whole pool once (questions +
@@ -71,6 +71,63 @@ export async function loadDrillPool(env: Bindings, userId: string): Promise<Dril
   }));
 }
 
+// The questions of ONE published quiz as drillable questions — the quiz-scoped Drill pool the
+// "挑戦" entry point uses (CONTEXT.md Challenge/Drill; ADR-0013). Same DrillQuestion shape as the
+// Review List pool, so the client renders both with one card. Returns undefined when the quiz
+// isn't currently published & not deleted (the published gate → 404). is_correct is WITHHELD
+// (graded server-side after submit, ADR-0010); the client shuffles the question order.
+export async function loadQuizDrillPool(
+  env: Bindings,
+  quizId: string,
+): Promise<{ quizTitle: string; items: DrillQuestion[] } | undefined> {
+  const d = db(env);
+  const qzRows = await d
+    .select({ title: quiz.title })
+    .from(quiz)
+    .where(and(eq(quiz.id, quizId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .limit(1);
+  const qz = qzRows[0];
+  if (!qz) return undefined;
+
+  const rows = await d
+    .select({ questionId: question.id, type: question.type, prompt: question.prompt })
+    .from(question)
+    .where(eq(question.quizId, quizId))
+    .orderBy(asc(question.position));
+
+  const ids = rows.map((r) => r.questionId);
+  const choiceRows = ids.length
+    ? await d
+        .select({
+          id: choice.id,
+          questionId: choice.questionId,
+          text: choice.text,
+          position: choice.position,
+        })
+        .from(choice)
+        .where(inArray(choice.questionId, ids))
+    : [];
+  const byQuestion = new Map<string, { id: string; text: string; position: number }[]>();
+  for (const cr of choiceRows) {
+    const arr = byQuestion.get(cr.questionId) ?? [];
+    arr.push({ id: cr.id, text: cr.text, position: cr.position });
+    byQuestion.set(cr.questionId, arr);
+  }
+  for (const arr of byQuestion.values()) arr.sort((a, b) => a.position - b.position);
+
+  return {
+    quizTitle: qz.title,
+    items: rows.map((r) => ({
+      questionId: r.questionId,
+      type: r.type,
+      prompt: r.prompt,
+      quizId,
+      quizTitle: qz.title,
+      choices: byQuestion.get(r.questionId) ?? [],
+    })),
+  };
+}
+
 // Load one question for Drill grading — only if it belongs to a currently published,
 // non-deleted quiz (the boundary's published gate; gradeQuestion itself stays pure). Returns
 // the GradedQuestion (choices WITH is_correct, used only server-side) + its explanation
@@ -113,14 +170,15 @@ export async function loadGradedQuestion(
   };
 }
 
-// Append one Drill answer (server-graded). No upsert, no uniqueness — every drill is a new
-// row (ADR-0008). Feeds the dashboard via loadUserDrillFacts / userQuestionStats.
+// Append one Drill answer to the flat `answer` table (server-graded). No upsert, no uniqueness
+// — every drill is a new Answer row (ADR-0008/0013). Feeds the dashboard (loadUserAnswerFacts /
+// userQuestionStats). Name kept as recordReviewAnswer through Slice 1; consolidated in Slice 3.
 export async function recordReviewAnswer(
   env: Bindings,
   params: { userId: string; questionId: string; isCorrect: boolean },
 ): Promise<void> {
   await db(env)
-    .insert(reviewAnswer)
+    .insert(answer)
     .values({
       id: newId(),
       userId: params.userId,
@@ -128,4 +186,28 @@ export async function recordReviewAnswer(
       isCorrect: params.isCorrect ? 1 : 0,
       answeredAt: Date.now(),
     });
+}
+
+// The caller's own all-time accuracy per question, over the flat `answer` table — activity-framed,
+// re-answers included; every submission is an Answer now (ADR-0013). Shown during a Drill / 挑戦.
+export async function userQuestionStats(
+  env: Bindings,
+  userId: string,
+  questionIds: string[],
+): Promise<Record<string, { correct: number; total: number }>> {
+  const out: Record<string, { correct: number; total: number }> = {};
+  if (!questionIds.length) return out;
+  const rows = await db(env)
+    .select({
+      questionId: answer.questionId,
+      total: count(),
+      correct: sum(answer.isCorrect),
+    })
+    .from(answer)
+    .where(and(eq(answer.userId, userId), inArray(answer.questionId, questionIds)))
+    .groupBy(answer.questionId);
+  for (const r of rows) {
+    out[r.questionId] = { correct: Number(r.correct ?? 0), total: Number(r.total) };
+  }
+  return out;
 }

@@ -4,7 +4,6 @@ import { optionalAuth, requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/oauth";
 import { destroySession } from "./auth/session";
 import { csrf, securityHeaders } from "./middleware/security";
-import { attemptsRouter } from "./routes/attempts";
 import { dashboardRouter } from "./routes/dashboard";
 import { drillRouter } from "./routes/drill";
 import { publicRouter } from "./routes/public";
@@ -40,15 +39,14 @@ const api = new Hono<Env>()
   .route("/quizzes", quizzesRouter)
   // Public read surface: timeline + single published quiz (challenge view).
   .route("/public", publicRouter)
-  // Attempts: start/resume, submit one answer (server-graded), get state.
-  .route("/attempts", attemptsRouter)
   // Moderation report channel (session-only, per-user rate limited).
   .route("/reports", reportsRouter)
   // Private learning dashboard (session-only): accuracy / streak / per-tag (ADR-0006).
   .route("/dashboard", dashboardRouter)
   // Review List / "my hot list" (session-only, private; question-level — ADR-0008).
   .route("/review-list", reviewListRouter)
-  // Drill over the Review List pool (session-only, private; stateless — ADR-0008).
+  // Drill (session-only, private; stateless — ADR-0008/0013): the Review List pool plus the
+  // quiz-scoped pool (the "挑戦" entry). Replaces the retired attempts route.
   .route("/drill", drillRouter);
 
 const app = new Hono<Env>()
