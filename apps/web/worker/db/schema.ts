@@ -308,16 +308,17 @@ export const reviewList = sqliteTable(
   ],
 );
 
-// A user's Drill answers — the append-only log of re-answering Review List questions
-// (CONTEXT.md Drill; ADR-0008). Unlike attempt_answer there is NO uniqueness guard: every
-// drill of a question is a new row (drill the same question many times), and there is no
-// attempt / score / completion (Drill is stateless — ADR-0008). is_correct is server-graded
-// (gradeQuestion) and frozen. Feeds ALL private-dashboard metrics uniformly — streak /
-// activity / accuracy, per-tag via a question->quiz join at read time (ADR-0006, 2026-06-19).
-// user_id CASCADEs (user-owned); question_id does NOT cascade (history survives question
-// edits, like attempt_answer). idx (user_id, answered_at) drives streak / activity.
-export const reviewAnswer = sqliteTable(
-  "review_answer",
+// The single flat Answer table — every graded Answer a user submits (CONTEXT.md Answer;
+// ADR-0013). Renamed from review_answer (migration 0009), which already had this exact shape;
+// the historical attempt_answer rows are migrated in here in 0010 (step 2), after which `answer`
+// is the SOLE source for the dashboard. Append-only: NO uniqueness guard (answer a question many
+// times, each a new row), and no attempt / score / completion (the Attempt entity is retired —
+// ADR-0013). is_correct is server-graded (gradeQuestion) and frozen. Feeds ALL private-dashboard
+// metrics uniformly — streak / activity / accuracy, per-tag & per-quiz via a question->quiz join
+// at read time (ADR-0006). user_id CASCADEs (user-owned); question_id does NOT cascade (history
+// survives question edits). idx (user_id, answered_at) drives streak / activity.
+export const answer = sqliteTable(
+  "answer",
   {
     id: text("id").primaryKey(),
     userId: text("user_id")
@@ -329,7 +330,7 @@ export const reviewAnswer = sqliteTable(
     isCorrect: integer("is_correct").notNull(), // 0|1, server-graded
     answeredAt: integer("answered_at").notNull(),
   },
-  (t) => [index("idx_review_answer_user_answered").on(t.userId, t.answeredAt)],
+  (t) => [index("idx_answer_user_answered").on(t.userId, t.answeredAt)],
 );
 
 // Inferred row types for use across the worker (query results / inserts).
@@ -346,4 +347,4 @@ export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
 export type TagEdge = typeof tagEdge.$inferSelect;
 export type ReviewListRow = typeof reviewList.$inferSelect;
-export type ReviewAnswer = typeof reviewAnswer.$inferSelect;
+export type Answer = typeof answer.$inferSelect;

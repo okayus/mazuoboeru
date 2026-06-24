@@ -4,7 +4,7 @@ import { parseAcceptedAnswers } from "../domain/short-answer";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
-import { choice, question, quiz, reviewAnswer, reviewList } from "./schema";
+import { answer, choice, question, quiz, reviewList } from "./schema";
 
 // Drill = re-answering Review List questions one at a time (CONTEXT.md Drill; ADR-0008).
 // These queries serve the stateless drill loop: load the whole pool once (questions +
@@ -113,14 +113,15 @@ export async function loadGradedQuestion(
   };
 }
 
-// Append one Drill answer (server-graded). No upsert, no uniqueness — every drill is a new
-// row (ADR-0008). Feeds the dashboard via loadUserDrillFacts / userQuestionStats.
+// Append one Drill answer to the flat `answer` table (server-graded). No upsert, no uniqueness
+// — every drill is a new Answer row (ADR-0008/0013). Feeds the dashboard (loadUserAnswerFacts /
+// userQuestionStats). Name kept as recordReviewAnswer through Slice 1; consolidated in Slice 3.
 export async function recordReviewAnswer(
   env: Bindings,
   params: { userId: string; questionId: string; isCorrect: boolean },
 ): Promise<void> {
   await db(env)
-    .insert(reviewAnswer)
+    .insert(answer)
     .values({
       id: newId(),
       userId: params.userId,

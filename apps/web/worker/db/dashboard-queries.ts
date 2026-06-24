@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import type { Bindings } from "../types";
 import { db } from "./client";
-import { attempt, attemptAnswer, question, quizTags, reviewAnswer } from "./schema";
+import { answer, attempt, attemptAnswer, question, quizTags } from "./schema";
 
 export type UserAnswerFact = { isCorrect: boolean; answeredAt: number; quizId: string };
 
@@ -27,21 +27,22 @@ export async function loadUserAnswerFacts(
   }));
 }
 
-// All of a user's Drill answers (review_answer), each resolved to the quiz it belongs to via
-// its question — the same UserAnswerFact shape as attempts, so the dashboard merges them
+// All of a user's Drill answers (the flat `answer` table), each resolved to the quiz it belongs
+// to via its question — the same UserAnswerFact shape as attempts, so the dashboard merges them
 // uniformly (ADR-0006 2026-06-19: a drill answer is an answer). No published filter (activity
 // counts all answers, like attempts); the inner join only resolves quizId and drops answers
-// whose question was hard-deleted (a Phase 4 concern).
+// whose question was hard-deleted (a Phase 4 concern). Slice 3 folds the attempt facts in here
+// (single-source on `answer`) and renames this; through Slices 1-2 it is the drill half.
 export async function loadUserDrillFacts(env: Bindings, userId: string): Promise<UserAnswerFact[]> {
   const rows = await db(env)
     .select({
-      isCorrect: reviewAnswer.isCorrect,
-      answeredAt: reviewAnswer.answeredAt,
+      isCorrect: answer.isCorrect,
+      answeredAt: answer.answeredAt,
       quizId: question.quizId,
     })
-    .from(reviewAnswer)
-    .innerJoin(question, eq(reviewAnswer.questionId, question.id))
-    .where(eq(reviewAnswer.userId, userId));
+    .from(answer)
+    .innerJoin(question, eq(answer.questionId, question.id))
+    .where(eq(answer.userId, userId));
   return rows.map((r) => ({
     isCorrect: r.isCorrect === 1,
     answeredAt: r.answeredAt,

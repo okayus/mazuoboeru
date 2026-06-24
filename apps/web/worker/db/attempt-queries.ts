@@ -2,7 +2,7 @@ import { and, count, eq, inArray, isNull, sum } from "drizzle-orm";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
-import { type Attempt, attempt, type AttemptAnswer, attemptAnswer, reviewAnswer } from "./schema";
+import { answer, type Attempt, attempt, type AttemptAnswer, attemptAnswer } from "./schema";
 
 // At most one unfinished attempt per (user, quiz) — opening a quiz resumes it.
 export async function findUnfinishedAttempt(
@@ -106,13 +106,13 @@ export async function userQuestionStats(
 
   const drillRows = await d
     .select({
-      questionId: reviewAnswer.questionId,
+      questionId: answer.questionId,
       total: count(),
-      correct: sum(reviewAnswer.isCorrect),
+      correct: sum(answer.isCorrect),
     })
-    .from(reviewAnswer)
-    .where(and(eq(reviewAnswer.userId, userId), inArray(reviewAnswer.questionId, questionIds)))
-    .groupBy(reviewAnswer.questionId);
+    .from(answer)
+    .where(and(eq(answer.userId, userId), inArray(answer.questionId, questionIds)))
+    .groupBy(answer.questionId);
   for (const r of drillRows) add(r.questionId, Number(r.total), Number(r.correct ?? 0));
 
   return out;
