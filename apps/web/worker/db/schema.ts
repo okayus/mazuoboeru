@@ -95,8 +95,8 @@ export const apiToken = sqliteTable(
 // Quizzes are always public. status is draft|published|hidden (no `private`),
 // draft->published is irreversible, hidden is moderator-only. deleted_at is soft
 // delete. Public queries always filter status='published' AND deleted_at IS NULL.
-// author_id intentionally does NOT cascade: a quiz outlives nothing of the author's
-// here, and others' attempts reference it — author hard-delete is a Phase 4 flow.
+// author_id intentionally does NOT cascade: a quiz outlives the author's account here
+// (other users' answers reference its questions) — author hard-delete is a Phase 4 flow.
 export const quiz = sqliteTable(
   "quiz",
   {
@@ -157,49 +157,6 @@ export const choice = sqliteTable(
     position: integer("position").notNull(),
   },
   (t) => [index("idx_choice_question").on(t.questionId, t.position)],
-);
-
-// A user's run at a quiz. Private to the user. quiz_id does NOT cascade: attempt
-// history is preserved independently of the quiz lifecycle (quiz uses soft delete).
-export const attempt = sqliteTable(
-  "attempt",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    quizId: text("quiz_id")
-      .notNull()
-      .references(() => quiz.id),
-    startedAt: integer("started_at").notNull(),
-    finishedAt: integer("finished_at"), // set once all questions answered
-    score: integer("score"),
-    total: integer("total"),
-  },
-  (t) => [
-    index("idx_attempt_user_quiz").on(t.userId, t.quizId),
-    index("idx_attempt_quiz").on(t.quizId),
-  ],
-);
-
-// One graded submission per question per attempt (enforced by the unique index).
-// is_correct is frozen at write time and never recomputed, even on quiz edits.
-// question_id does NOT cascade: historical answers survive question changes.
-export const attemptAnswer = sqliteTable(
-  "attempt_answer",
-  {
-    id: text("id").primaryKey(),
-    attemptId: text("attempt_id")
-      .notNull()
-      .references(() => attempt.id, { onDelete: "cascade" }),
-    questionId: text("question_id")
-      .notNull()
-      .references(() => question.id),
-    response: text("response").notNull(), // JSON array of selected choice ids
-    isCorrect: integer("is_correct").notNull(), // 0|1
-    answeredAt: integer("answered_at").notNull(),
-  },
-  (t) => [uniqueIndex("idx_attempt_answer_unique").on(t.attemptId, t.questionId)],
 );
 
 // Moderation report channel (Phase 1 MVP). A user reports a quiz/question/user with
@@ -341,8 +298,6 @@ export type ApiToken = typeof apiToken.$inferSelect;
 export type Quiz = typeof quiz.$inferSelect;
 export type Question = typeof question.$inferSelect;
 export type Choice = typeof choice.$inferSelect;
-export type Attempt = typeof attempt.$inferSelect;
-export type AttemptAnswer = typeof attemptAnswer.$inferSelect;
 export type Report = typeof report.$inferSelect;
 export type Tag = typeof tag.$inferSelect;
 export type TagEdge = typeof tagEdge.$inferSelect;

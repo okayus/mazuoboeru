@@ -13,10 +13,8 @@ user 1───* quiz            (作者)
 quiz 1───* question
 question 1───* choice      (多肢選択の選択肢)
 quiz *───* tag             (quiz_tags)
-user 1───* attempt         (挑戦)
-attempt 1───* attempt_answer
 user *───* question        (review_list で多対多＝復習リスト / 旧 favorite を置換)
-user 1───* review_answer   (ドリルの回答・ストリーク算入)
+user 1───* answer          (回答＝挑戦・ドリル共通の単一フラット記録・ADR-0013)
 user 1───* report          (通報)
 ```
 
@@ -114,11 +112,6 @@ user 1───* report          (通報)
 - tag_edge: `(narrower_id, broader_id)` PK＝タグの**上位下位（subsumption）DAG**（[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)。多親可・両 id は tag へ CASCADE・索引 `tag_edge(broader_id)`）。**実効タグ**（authored＋上位閉包）は読み時に純粋関数 `worker/domain/tag-graph.ts` で導出＝保存しない。絞り込み「広いタグ」は下位閉包で一致。
   - **curate（運用者のみ・MVP は DB/CLI）**: 公開 write API も admin UI も無い。投入は `wrangler d1 execute mazuoboeru-db --remote --command "INSERT INTO tag_edge (narrower_id, broader_id) VALUES ('<下位 tag.id>','<上位 tag.id>')"`（両タグは既存前提＝先に `tag` を確認/作成）。**投入前に巡回チェック**（`wouldCreateCycle`）を通し DAG を維持する。read（グラフ取得）は将来の可視化用に公開予定。
 
-### attempt（挑戦）／ attempt_answer（各回答）
-- attempt: `id` / `user_id` / `quiz_id` / `started_at` / `finished_at?` / `score` / `total`。**非公開**。
-- attempt_answer: `id` / `attempt_id` / `question_id` / `response`(JSON) / `is_correct` / `answered_at`。採点はサーバー側で確定。
-- **invariant**: `attempt_answer.is_correct` は **書き込み後に変更しない**。クイズ編集（重大変更を含む）でも触らない（根拠は**履歴の自立性**＝回答時点の事実を保存し後の編集に影響されないため。不正防止ではない＝[ADR-0010](adr/0010-server-side-grading-rationale.md)。[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）。
-
 ### review_list（復習リスト / "my hot list"・[[CONTEXT.md]] Review List）
 | カラム | 型 | 備考 |
 | --- | --- | --- |
@@ -129,16 +122,18 @@ user 1───* report          (通報)
 
 - **設問単位**の私的プール（旧 favorite＝クイズ単位を置換＝[ADR-0008](adr/0008-review-list-manual-pool.md)）。登録はクイズ単位一括（**追加時点の設問をスナップショットで insert**）でも設問単位でもよく、卒業（覚えた）は設問単位で外す。一覧（"my hot list"）とドリルは、設問の属する quiz が `status='published' AND deleted_at IS NULL` のものに絞る（非公開化された設問は自然に落ちる）。
 
-### review_answer（ドリルの回答・本人のみ）
+### answer（回答＝挑戦・ドリル共通の単一フラット記録・[[CONTEXT.md]] Answer）
 | カラム | 型 | 備考 |
 | --- | --- | --- |
 | id | text | PK |
 | user_id | text | FK → user（CASCADE） |
-| question_id | text | FK → question |
-| is_correct | integer (bool) | サーバー採点（既存 `gradeSelection` を再利用） |
-| answered_at | integer | epoch ms。索引 (user_id, answered_at) でストリーク判定 |
+| question_id | text | FK → question（**NO ACTION**＝履歴は設問編集・rebuild に影響されない） |
+| is_correct | integer (bool) | サーバー採点（純関数 `gradeQuestion`）。**書き込み後不変** |
+| answered_at | integer | epoch ms。索引 (user_id, answered_at) でストリーク／活動量 |
 
-- [[CONTEXT.md]] Drill の記録。**Attempt には乗せない**（Attempt＝1クイズ通しの意味を保つため）。ストリーク／活動量は「`attempt_answer` または `review_answer` のある JST 日／回答」で数える（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記・[ADR-0008](adr/0008-review-list-manual-pool.md)）。
+- 本サービスが永続化する回答の**唯一のテーブル**（[ADR-0013](adr/0013-retire-attempt-unify-answers.md)）。旧 `review_answer` をリネームし旧 `attempt_answer` を移行統合（migration 0009→0010）。**追記専用**＝同一設問への再回答は別の新しい行（一意制約なし）。`response`（提出内容）・由来（挑戦／ドリル）・「1回ぶんの括り（attempt）」・「完了」は持たない。
+- **invariant**: `answer.is_correct` は**書き込み後に変更しない**。クイズ編集（重大変更を含む）でも触らない（根拠は**履歴の自立性**＝回答時点の事実を保存し後の編集に影響されないため。不正防止ではない＝[ADR-0010](adr/0010-server-side-grading-rationale.md)。[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)）。
+- 「挑戦」（クイズ単位 [[Drill]]）・「ドリル」（Review List）双方の回答がここに入る。クイズ別集計は answer→question→quiz で導出（グルーピング行なし）。ストリーク／活動量は「`answer` のある JST 日／回答」で数える（[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)）。
 
 > ⚠️ **`review_state`（SM-2: ease/interval/due_at）は当面作らない**。復習は手動の `review_list`＋通知駆動スペーシングで実現し、在庫スケジューラを持たない（[ADR-0008](adr/0008-review-list-manual-pool.md)）。将来アルゴリズム的 SRS が要れば別 ADR で `review_state` を再開する。
 
@@ -159,10 +154,9 @@ user 1───* report          (通報)
 
 ## 集計（発見・ダッシュボード用）
 
-- 人気クイズ: `attempt` 数の集計（頻出ならキャッシュ／事前集計テーブル `quiz_stats` 化）。※旧「`favorite` 数」は Review List 化（設問単位・私的）で公開人気指標には使わない。
-- 作者の反響: quiz 別の挑戦数・平均正答率（attempt から）。
-- 本人の学習: 正答率・ストリーク・タグ別習熟度（attempt / attempt_answer から）。
-- いずれも **公開はクイズ単位の集計まで**。個人の成績は本人のみ。
+- 人気クイズ: 回答のあった distinct user 数など `answer`→question→quiz の集計（頻出ならキャッシュ／事前集計テーブル `quiz_stats` 化）。※旧「`favorite` 数」は Review List 化（設問単位・私的）で公開人気指標には使わない。Attempt 引退で「完了 Attempt のみ数える」は撤回（[ADR-0013](adr/0013-retire-attempt-unify-answers.md)・[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) addendum）。
+- 本人の学習（私的ダッシュボード）: 全体／タグ別／**クイズ別**／設問別の正答率・ストリーク・活動量を、すべて単一の `answer` から導出（回答単位・活動量フレーム＝[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)）。クイズ別・タグ別は answer→question→quiz の read 時 join で軸を導く（グルーピング行なし）。
+- いずれも **公開はクイズ単位の集計まで**。個人の成績・回答履歴は本人のみ。
 
 ## インデックス（目安）
 
@@ -170,8 +164,7 @@ user 1───* report          (通報)
 - `quiz(author_id)` ── 作者ページ。
 - `question(quiz_id, position)` / `choice(question_id, position)`。
 - `quiz_tags(tag_id)` ── タグ別の絞り込み（`quiz_id` は PK のプレフィックスが兼ねるので別索引は作らない）。
-- `attempt(user_id, quiz_id)` / `attempt(quiz_id)` ── 本人履歴・クイズ集計。
-- `review_answer(user_id, answered_at)` ── ストリーク／活動量にドリルを算入（[ADR-0008](adr/0008-review-list-manual-pool.md)・[ADR-0006](adr/0006-dashboard-aggregation-semantics.md) 追記）。
+- `answer(user_id, answered_at)` ── 本人の全回答（挑戦・ドリル共通）。ストリーク／活動量／各正答率軸（全体・タグ別・クイズ別・設問別）の源（[ADR-0013](adr/0013-retire-attempt-unify-answers.md)・[ADR-0006](adr/0006-dashboard-aggregation-semantics.md)）。
 - `session(expires_at)` ── 期限切れ掃除。
 - `oauth_account(user_id)` ── 「私のリンク済みプロバイダ」表示。
 - `api_token(token_hash)` ── PAT 認証時のホットパス（unique）。`api_token(user_id, revoked_at)` ── 管理画面用。

@@ -3,8 +3,6 @@
 // the client (ApiError.body is typed with it, so views can branch on the code).
 // Mirrors the domain/report.ts const-tuple → union pattern.
 export const API_ERROR_CODES = [
-  "already_answered",
-  "attempt_finished",
   "cannot_report_self",
   "cannot_restructure_published",
   "csrf_origin_mismatch",
@@ -15,7 +13,6 @@ export const API_ERROR_CODES = [
   "not_draft",
   "not_found",
   "not_publishable",
-  "quiz_unavailable",
   "rate_limited",
   "session_required",
   "target_not_found",

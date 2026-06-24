@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AnswerFact, bundleTagAccuracy, computeStreak } from "./dashboard";
+import { type AnswerFact, bundleQuizAccuracy, bundleTagAccuracy, computeStreak } from "./dashboard";
 import type { Edge } from "./tag-graph";
 
 // ms at ~12:00 JST on JST-day index `d` (3:00 UTC), safely inside that day.
@@ -68,5 +68,21 @@ describe("bundleTagAccuracy", () => {
     );
     expect(byTagId.size).toBe(0);
     expect(untagged).toEqual({ correct: 0, total: 1 });
+  });
+});
+
+describe("bundleQuizAccuracy", () => {
+  it("groups answers by quiz; each answer counts toward exactly one quiz", () => {
+    const byQuiz = bundleQuizAccuracy([
+      { isCorrect: true, quizId: "qA" },
+      { isCorrect: false, quizId: "qA" },
+      { isCorrect: true, quizId: "qB" },
+    ]);
+    expect(byQuiz.get("qA")).toEqual({ correct: 1, total: 2 });
+    expect(byQuiz.get("qB")).toEqual({ correct: 1, total: 1 });
+    expect(byQuiz.size).toBe(2);
+  });
+  it("is empty with no answers", () => {
+    expect(bundleQuizAccuracy([]).size).toBe(0);
   });
 });

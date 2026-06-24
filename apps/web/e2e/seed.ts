@@ -45,8 +45,7 @@ const sessionRow = (u: Fixture): string =>
 
 // Children before parents (FK order). A full wipe keeps every run deterministic.
 const reset = [
-  "attempt_answer",
-  "attempt",
+  "answer",
   "choice",
   "question",
   "quiz",

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sum } from "drizzle-orm";
 import type { GradedQuestion } from "../domain/grading";
 import { parseAcceptedAnswers } from "../domain/short-answer";
 import { newId } from "../lib/id";
@@ -186,4 +186,28 @@ export async function recordReviewAnswer(
       isCorrect: params.isCorrect ? 1 : 0,
       answeredAt: Date.now(),
     });
+}
+
+// The caller's own all-time accuracy per question, over the flat `answer` table — activity-framed,
+// re-answers included; every submission is an Answer now (ADR-0013). Shown during a Drill / 挑戦.
+export async function userQuestionStats(
+  env: Bindings,
+  userId: string,
+  questionIds: string[],
+): Promise<Record<string, { correct: number; total: number }>> {
+  const out: Record<string, { correct: number; total: number }> = {};
+  if (!questionIds.length) return out;
+  const rows = await db(env)
+    .select({
+      questionId: answer.questionId,
+      total: count(),
+      correct: sum(answer.isCorrect),
+    })
+    .from(answer)
+    .where(and(eq(answer.userId, userId), inArray(answer.questionId, questionIds)))
+    .groupBy(answer.questionId);
+  for (const r of rows) {
+    out[r.questionId] = { correct: Number(r.correct ?? 0), total: Number(r.total) };
+  }
+  return out;
 }

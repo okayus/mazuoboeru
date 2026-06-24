@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth, requireUser } from "../auth/middleware";
-import { userQuestionStats } from "../db/attempt-queries";
 import {
   loadDrillPool,
   loadGradedQuestion,
   loadQuizDrillPool,
   recordReviewAnswer,
+  userQuestionStats,
 } from "../db/drill-queries";
 import { reviewListIdsAmong } from "../db/review-list-queries";
 import { gradeQuestion, type Submission } from "../domain/grading";

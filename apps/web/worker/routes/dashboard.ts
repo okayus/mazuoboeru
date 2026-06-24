@@ -3,27 +3,22 @@ import { requireAuth, requireUser } from "../auth/middleware";
 import {
   authoredTagIdsByQuiz,
   loadUserAnswerFacts,
-  loadUserDrillFacts,
+  quizTitlesByIds,
 } from "../db/dashboard-queries";
 import { loadTagEdges, tagNameMap } from "../db/tag-queries";
-import { bundleTagAccuracy, computeStreak } from "../domain/dashboard";
+import { bundleQuizAccuracy, bundleTagAccuracy, computeStreak } from "../domain/dashboard";
 import type { Env } from "../types";
 
-// Private learning dashboard (session-only). Activity-framed, per-answer (ADR-0006);
-// the numbers are the caller's own — never public. Reads existing attempt data + tags.
+// Private learning dashboard (session-only). Activity-framed, per-answer (ADR-0006); the numbers
+// are the caller's own — never public. One read of the single flat `answer` table (ADR-0013) feeds
+// every axis: overall / streak / per-tag / per-quiz. The former Attempt entity is gone, so there is
+// no "completed" distinction — every Answer counts (the source is now uniform).
 export const dashboardRouter = new Hono<Env>()
   .use("*", requireAuth)
 
   .get("/", async (c) => {
     const user = requireUser(c);
-    // A drill answer is an answer: review_answer feeds overall / streak / per-tag uniformly
-    // (ADR-0006 2026-06-19). quizzesAttempted stays an Attempt concept (drilling a question
-    // isn't "attempting the quiz"), so it counts attempt facts only — see below.
-    const [attemptFacts, drillFacts] = await Promise.all([
-      loadUserAnswerFacts(c.env, user.id),
-      loadUserDrillFacts(c.env, user.id),
-    ]);
-    const facts = [...attemptFacts, ...drillFacts];
+    const facts = await loadUserAnswerFacts(c.env, user.id);
 
     const total = facts.length;
     const correct = facts.filter((f) => f.isCorrect).length;
@@ -33,25 +28,28 @@ export const dashboardRouter = new Hono<Env>()
     );
     const quizIds = [...new Set(facts.map((f) => f.quizId))];
 
-    const [authoredByQuiz, edges] = await Promise.all([
+    const [authoredByQuiz, edges, titleById] = await Promise.all([
       authoredTagIdsByQuiz(c.env, quizIds),
       loadTagEdges(c.env),
+      quizTitlesByIds(c.env, quizIds),
     ]);
-    const { byTagId, untagged } = bundleTagAccuracy(
-      facts.map((f) => ({ isCorrect: f.isCorrect, quizId: f.quizId })),
-      authoredByQuiz,
-      edges,
-    );
+
+    const answerFacts = facts.map((f) => ({ isCorrect: f.isCorrect, quizId: f.quizId }));
+    const { byTagId, untagged } = bundleTagAccuracy(answerFacts, authoredByQuiz, edges);
     const nameById = await tagNameMap(c.env, [...byTagId.keys()]);
     const tags = [...byTagId.entries()]
       .map(([id, b]) => ({ name: nameById.get(id) ?? "?", correct: b.correct, total: b.total }))
       .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
-    return c.json({
-      overall: { correct, total },
-      streak,
-      tags,
-      untagged,
-      quizzesAttempted: new Set(attemptFacts.map((f) => f.quizId)).size,
-    });
+    // Per-quiz axis (ADR-0013): group answers by their quiz (question->quiz), most-answered first.
+    const quizzes = [...bundleQuizAccuracy(answerFacts).entries()]
+      .map(([quizId, b]) => ({
+        quizId,
+        quizTitle: titleById.get(quizId) ?? "（削除済みのクイズ）",
+        correct: b.correct,
+        total: b.total,
+      }))
+      .sort((a, b) => b.total - a.total || a.quizTitle.localeCompare(b.quizTitle));
+
+    return c.json({ overall: { correct, total }, streak, tags, untagged, quizzes });
   });

@@ -30,8 +30,8 @@ export async function removeFromReviewList(
     .where(and(eq(reviewList.userId, userId), eq(reviewList.questionId, questionId)));
 }
 
-// The subset of `questionIds` that are in the user's Review List. The attempt view
-// uses this to mark each question's per-question toggle (membership).
+// The subset of `questionIds` that are in the user's Review List. The 挑戦 (quiz Drill)
+// and Drill views use this to mark each question's Review List toggle (membership).
 export async function reviewListIdsAmong(
   env: Bindings,
   userId: string,
@@ -46,7 +46,7 @@ export async function reviewListIdsAmong(
 }
 
 // Whether a question exists and belongs to a currently published, non-deleted quiz.
-// Gate for adding to the Review List: you can only add questions you could attempt.
+// Gate for adding to the Review List: you can only add questions from a published quiz.
 export async function publishedQuestionExists(env: Bindings, questionId: string): Promise<boolean> {
   const rows = await db(env)
     .select({ id: question.id })

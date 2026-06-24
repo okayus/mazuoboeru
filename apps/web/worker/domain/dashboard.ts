@@ -1,7 +1,7 @@
 import { ancestorIds, type Edge } from "./tag-graph";
 
 // Private learning-dashboard metrics — pure, per-answer, activity-framed (ADR-0006).
-// All counts are over the user's own attempt_answer rows (re-attempts included). No I/O.
+// All counts are over the user's own `answer` rows (re-attempts included). No I/O.
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -83,4 +83,19 @@ export function bundleTagAccuracy(
     }
   }
   return { byTagId, untagged };
+}
+
+// Bundle answers by their quiz — the per-quiz dashboard axis (ADR-0013). Unlike effective tags,
+// each answer counts toward exactly ONE quiz (its question's quiz), so the per-quiz totals sum to
+// the overall answer count. Keyed by quizId (the caller resolves titles). Reuses TagBucket as the
+// plain {correct,total} counter.
+export function bundleQuizAccuracy(answers: AnswerFact[]): Map<string, TagBucket> {
+  const byQuiz = new Map<string, TagBucket>();
+  for (const a of answers) {
+    const b = byQuiz.get(a.quizId) ?? { correct: 0, total: 0 };
+    b.total++;
+    if (a.isCorrect) b.correct++;
+    byQuiz.set(a.quizId, b);
+  }
+  return byQuiz;
 }
