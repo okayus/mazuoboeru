@@ -165,6 +165,10 @@ export const api = {
   drill: () => request<Ok<typeof client.api.drill.$get>>("/drill"),
   quizDrill: (quizId: string) =>
     request<Ok<(typeof client.api.drill.quiz)[":quizId"]["$get"]>>(`/drill/quiz/${quizId}`),
+  drillQuestion: (questionId: string) =>
+    request<Ok<(typeof client.api.drill.question)[":questionId"]["$get"]>>(
+      `/drill/question/${questionId}`,
+    ),
   submitDrillAnswer: (questionId: string, submission: AnswerSubmission) =>
     request<Ok<typeof client.api.drill.answers.$post>>("/drill/answers", {
       method: "POST",
