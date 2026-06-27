@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { api, type AnswerSubmission } from "../api";
+import { buildQuestionMarkdown } from "../lib/question-markdown";
 import { shuffle } from "../lib/shuffle";
 import { QuizMarkdown } from "../QuizMarkdown";
 
@@ -53,6 +54,7 @@ export function DrillQuestionCard(props: {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [copied, setCopied] = useState(false);
   // Display-only choice shuffle, fixed for this mount (empty for short — harmless).
   const [orderedChoices] = useState(() => shuffle(item.choices));
 
@@ -108,6 +110,20 @@ export function DrillQuestionCard(props: {
   const submitText = () => {
     const trimmed = text.trim();
     if (trimmed.length > 0) void submit({ text: trimmed });
+  };
+
+  // Copy the answered question (prompt + choices + correct answer + explanation) as a
+  // neutral study card in Markdown, into the user's clipboard. Only reachable post-answer,
+  // so `feedback` is non-null here. Raw Markdown source, not rendered HTML (see the builder).
+  const copyMarkdown = async () => {
+    if (!feedback) return;
+    try {
+      await navigator.clipboard.writeText(buildQuestionMarkdown(item, feedback));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("コピーに失敗しました");
+    }
   };
 
   return (
@@ -193,6 +209,11 @@ export function DrillQuestionCard(props: {
               <QuizMarkdown>{feedback.explanation}</QuizMarkdown>
             </div>
           ) : null}
+          <div className="copy-row">
+            <button type="button" className="copy-md" onClick={copyMarkdown}>
+              {copied ? "コピーしました ✓" : "マークダウンでコピー"}
+            </button>
+          </div>
           {props.actions}
         </>
       )}
