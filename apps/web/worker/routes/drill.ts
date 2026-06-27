@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireUser } from "../auth/middleware";
 import {
   loadDrillPool,
+  loadDrillQuestion,
   loadGradedQuestion,
   loadQuizDrillPool,
   recordReviewAnswer,
@@ -61,6 +62,17 @@ export const drillRouter = new Hono<Env>()
       questionStats,
       reviewListQuestionIds,
     });
+  })
+
+  // One Review List question as a drillable question — the single-question dialog opened from
+  // "my hot list" (a Drill scoped to one question; CONTEXT.md Drill). Same item shape as a pool
+  // entry, plus the caller's own accuracy. Never is_correct. 404 when not currently drillable.
+  .get("/question/:questionId", async (c) => {
+    const user = requireUser(c);
+    const item = await loadDrillQuestion(c.env, c.req.param("questionId"));
+    if (!item) return c.json(apiError("not_found"), 404);
+    const stats = await userQuestionStats(c.env, user.id, [item.questionId]);
+    return c.json({ item, stat: stats[item.questionId] ?? null });
   })
 
   // Grade one drill answer → append review_answer → immediate feedback (correct ids +

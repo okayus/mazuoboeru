@@ -128,6 +128,50 @@ export async function loadQuizDrillPool(
   };
 }
 
+// One drillable question for the single-question dialog opened from "my hot list" — a Drill
+// scoped to one Review List question (CONTEXT.md Drill). Same DrillQuestion shape as the pools
+// (prompt + choices, is_correct WITHHELD — ADR-0010), only if it belongs to a currently
+// published, non-deleted quiz (the published gate → 404). Undefined when not currently drillable.
+export async function loadDrillQuestion(
+  env: Bindings,
+  questionId: string,
+): Promise<DrillQuestion | undefined> {
+  const d = db(env);
+  const rows = await d
+    .select({
+      type: question.type,
+      prompt: question.prompt,
+      quizId: quiz.id,
+      quizTitle: quiz.title,
+    })
+    .from(question)
+    .innerJoin(quiz, eq(question.quizId, quiz.id))
+    .where(and(eq(question.id, questionId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .limit(1);
+  const r = rows[0];
+  if (!r) return undefined;
+
+  // short → no choices (the client renders a text input); mcq → choices without is_correct.
+  const choices =
+    r.type === "short"
+      ? []
+      : (
+          await d
+            .select({ id: choice.id, text: choice.text, position: choice.position })
+            .from(choice)
+            .where(eq(choice.questionId, questionId))
+        ).sort((a, b) => a.position - b.position);
+
+  return {
+    questionId,
+    type: r.type,
+    prompt: r.prompt,
+    quizId: r.quizId,
+    quizTitle: r.quizTitle,
+    choices,
+  };
+}
+
 // Load one question for Drill grading — only if it belongs to a currently published,
 // non-deleted quiz (the boundary's published gate; gradeQuestion itself stays pure). Returns
 // the GradedQuestion (choices WITH is_correct, used only server-side) + its explanation
