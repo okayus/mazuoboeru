@@ -3,9 +3,15 @@ import {
   createOutcome,
   createRequest,
   DEFAULT_BASE_URL,
+  getOutcome,
+  getRequest,
+  listOutcome,
+  meRequest,
+  mineRequest,
   type Outcome,
   publishOutcome,
   publishRequest,
+  whoamiOutcome,
 } from "./request.ts";
 
 // All I/O is injected so run() is exercisable with fakes (throw-less boundary).
@@ -54,6 +60,21 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
   const baseUrl = io.env("MAZUOBOERU_BASE_URL") ?? DEFAULT_BASE_URL;
 
   try {
+    if (command.kind === "list") {
+      const { url, init } = mineRequest(baseUrl, token);
+      const res = await io.fetch(url, init);
+      return emit(io, listOutcome(res.status, await parseJsonResponse(res)));
+    }
+    if (command.kind === "whoami") {
+      const { url, init } = meRequest(baseUrl, token);
+      const res = await io.fetch(url, init);
+      return emit(io, whoamiOutcome(res.status, await parseJsonResponse(res)));
+    }
+    if (command.kind === "get") {
+      const { url, init } = getRequest(baseUrl, token, command.id);
+      const res = await io.fetch(url, init);
+      return emit(io, getOutcome(res.status, await parseJsonResponse(res), command.id));
+    }
     if (command.kind === "create") {
       const raw = command.file === null ? await io.readStdin() : await io.readFile(command.file);
       // Fail fast on malformed input here, rather than as an opaque server 400.
