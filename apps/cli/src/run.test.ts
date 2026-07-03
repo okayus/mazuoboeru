@@ -95,6 +95,36 @@ describe("run", () => {
     expect(cap.err.join("\n")).toContain("no_questions");
   });
 
+  it("lists the caller's quizzes as tab-separated lines", async () => {
+    const fetch = vi.fn(async () =>
+      jsonResponse(200, { quizzes: [{ id: "q1", status: "draft", title: "t" }] }),
+    ) as unknown as typeof globalThis.fetch;
+    const { io, cap } = makeIo({ fetch });
+    expect(await run(["list"], io)).toBe(0);
+    expect(cap.out).toEqual(["q1\tdraft\tt"]);
+    const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toBe("https://mazuoboeru.shiraoka.workers.dev/api/quizzes/mine");
+    expect((init as RequestInit).headers).toEqual({ Authorization: "Bearer mzo_pat_test" });
+  });
+
+  it("gets a single quiz as pretty JSON", async () => {
+    const { io, cap } = makeIo({ fetch: async () => jsonResponse(200, { quiz: { id: "q1" } }) });
+    expect(await run(["get", "q1"], io)).toBe(0);
+    expect(cap.out.join("\n")).toContain('"id": "q1"');
+  });
+
+  it("exits 2 when get is missing an id", async () => {
+    const { io, cap } = makeIo();
+    expect(await run(["get"], io)).toBe(2);
+    expect(cap.err.join("\n")).toContain("get requires a quiz id");
+  });
+
+  it("whoami reports not authenticated on {user:null}", async () => {
+    const { io, cap } = makeIo({ fetch: async () => jsonResponse(200, { user: null }) });
+    expect(await run(["whoami"], io)).toBe(1);
+    expect(cap.err.join("\n")).toContain("not authenticated");
+  });
+
   it("maps a network failure to exit 1 (throw-less)", async () => {
     const { io, cap } = makeIo({
       fetch: async () => {

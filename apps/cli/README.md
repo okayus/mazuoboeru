@@ -30,11 +30,29 @@ cat quiz.json | node apps/cli/src/index.ts create
 # 量産して即公開 (id を捕まえて publish に渡す)
 id=$(node apps/cli/src/index.ts create quiz.json) && node apps/cli/src/index.ts publish "$id"
 
+# PAT の疎通確認 (認証中のユーザを表示)
+node apps/cli/src/index.ts whoami            # → Alice (u_xxx, user)
+
+# 自分のクイズ一覧 (id<TAB>status<TAB>title の1行/件)
+node apps/cli/src/index.ts list
+node apps/cli/src/index.ts list | grep -P '\tdraft\t' | cut -f1   # draft の id だけ
+
+# クイズ1件を JSON で表示 (全内容・jq 可)
+node apps/cli/src/index.ts get "$id" | jq .questions
+
 # workspace スクリプト経由でも可
 pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 ```
 
 `publish` は **明示・不可逆**（draft → published）。create は常に draft を作る。
+
+### 読み取りコマンド（`list` / `get` / `whoami`）
+
+いずれも PAT で通る読み取り専用。
+
+- **`whoami`** → `GET /api/auth/me`。PAT が有効かを確かめる。このエンドポイントは未認証でも 200 `{user:null}` を返すので、CLI は本文で判定し、未認証は **exit 1**。
+- **`list`** → `GET /api/quizzes/mine`。1クイズ1行のタブ区切り `id<TAB>status<TAB>title`（`cut`/`awk` で合成可）。title の空白は単一スペースに畳む（1行不変条件、正確な title は `get`）。
+- **`get <id>`** → `GET /api/quizzes/:id`。作者視点のクイズ全体を整形 JSON で出す（`jq` 可）。他人の / 不在の id は 404。
 
 ### 入力 JSON
 
@@ -61,7 +79,7 @@ pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 
 ## 出力契約
 
-- **stdout** = データ（create は新 id を bare 1行 / publish は `published <id>`）。`id=$(… create …)` が成立。
+- **stdout** = データ（create は新 id を bare 1行 / publish は `published <id>` / list はタブ区切り行 / get は整形 JSON / whoami はユーザ行）。`id=$(… create …)` が成立。
 - **stderr** = 診断。
 - 終了コード: `0` 成功 / `1` API・実行時エラー（401/403/404/409/422/ネットワーク）/ `2` 使い方・設定エラー（PAT 未設定・不正 JSON・不明コマンド）。
 
