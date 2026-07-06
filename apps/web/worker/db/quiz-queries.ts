@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import type { EditPlan } from "../domain/quiz-edit";
 import { parseAcceptedAnswers, serializeAcceptedAnswers } from "../domain/short-answer";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
@@ -39,9 +40,11 @@ export type LoadedQuestion = {
 };
 export type LoadedQuiz = { quiz: Quiz; questions: LoadedQuestion[] };
 
-// Load a quiz with its questions and choices (full fidelity, incl is_correct).
-// Callers decide what to expose — never send is_correct/explanation to a challenger
-// before grading.
+// Load a quiz with its ACTIVE questions and their choices (full fidelity, incl
+// is_correct). retired questions are excluded — every caller here is presentation
+// (author editor / public projection / publish + edit gates); history reads live in
+// dashboard-queries and don't use this loader (ADR-0014). Callers decide what to
+// expose — never send is_correct/explanation to a challenger before grading.
 export async function loadQuizWithContent(
   env: Bindings,
   quizId: string,
@@ -54,7 +57,7 @@ export async function loadQuizWithContent(
   const questionRows = await d
     .select()
     .from(question)
-    .where(eq(question.quizId, quizId))
+    .where(and(eq(question.quizId, quizId), eq(question.status, "active")))
     .orderBy(question.position);
   const qIds = questionRows.map((r) => r.id);
   const choiceRows = qIds.length
@@ -88,11 +91,12 @@ export async function loadQuizWithContent(
 // within the cap; all chunks still go into one d.batch() (callers below), which
 // remains atomic — D1 applies the limit per statement, not per batch.
 const D1_MAX_BOUND_PARAMS = 100;
-// Params bound per row = number of columns in each values() shape below. Keep these
-// in sync if a column is added to the question / choice insert.
-const QUESTION_PARAMS_PER_ROW = 7; // id, quizId, type, prompt, explanation, answer, position
+// Params bound per row = number of columns in each values() shape below — drizzle also
+// binds schema-defaulted columns (status) it fills in client-side. Keep these in sync
+// if a column is added to the question / choice insert.
+const QUESTION_PARAMS_PER_ROW = 8; // id, quizId, type, prompt, explanation, answer, status, position
 const CHOICE_PARAMS_PER_ROW = 5; // id, questionId, text, isCorrect, position
-const QUESTION_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / QUESTION_PARAMS_PER_ROW); // 14
+const QUESTION_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / QUESTION_PARAMS_PER_ROW); // 12
 const CHOICE_ROWS_PER_STMT = Math.floor(D1_MAX_BOUND_PARAMS / CHOICE_PARAMS_PER_ROW); // 20
 
 // Split rows into fixed-size, order-preserving chunks. chunk([], n) === [].
@@ -196,6 +200,109 @@ export async function replaceDraftContent(
     stmts.push(d.delete(question).where(inArray(question.id, existingIds)));
   }
   for (const s of contentStatements(d, quizId, input)) stmts.push(s);
+  await d.batch(stmts);
+}
+
+// UPDATE/DELETE statements that filter by an id list bind 1 param per id (plus the
+// SET values), so cap the ids per statement below the 100-param limit with headroom.
+const IDS_PER_STMT = 99;
+
+// Build the batch statements for a published-quiz edit plan (ADR-0014). Updates are
+// id-preserving (answer/review_list keep referencing the same question row); a
+// question's choices are wholesale replaced (nothing holds an FK to choice — the
+// grader reads them live). Retire is an UPDATE to status='retired', never a DELETE.
+// Exported for the param-cap unit test (same rationale as contentStatements).
+export function publishedEditStatements(
+  d: ReturnType<typeof db>,
+  quizId: string,
+  plan: EditPlan,
+): BatchItem<"sqlite">[] {
+  const stmts: BatchItem<"sqlite">[] = [];
+
+  for (const ids of chunk(plan.retireIds, IDS_PER_STMT)) {
+    stmts.push(d.update(question).set({ status: "retired" }).where(inArray(question.id, ids)));
+  }
+
+  for (const u of plan.updates) {
+    stmts.push(
+      d
+        .update(question)
+        .set({
+          prompt: u.prompt,
+          explanation: u.explanation,
+          answer: u.type === "short" ? serializeAcceptedAnswers(u.answer) : null,
+          position: u.position,
+        })
+        .where(eq(question.id, u.id)),
+    );
+  }
+  for (const ids of chunk(
+    plan.updates.map((u) => u.id),
+    IDS_PER_STMT,
+  )) {
+    stmts.push(d.delete(choice).where(inArray(choice.questionId, ids)));
+  }
+
+  const questionRows: Array<typeof question.$inferInsert> = [];
+  const choiceRows: Array<typeof choice.$inferInsert> = [];
+  for (const u of plan.updates) {
+    u.choices.forEach((ch, ci) => {
+      choiceRows.push({
+        id: newId(),
+        questionId: u.id,
+        text: ch.text,
+        isCorrect: ch.isCorrect ? 1 : 0,
+        position: ci,
+      });
+    });
+  }
+  for (const ins of plan.inserts) {
+    const qId = newId();
+    questionRows.push({
+      id: qId,
+      quizId,
+      type: ins.type,
+      prompt: ins.prompt,
+      explanation: ins.explanation,
+      answer: ins.type === "short" ? serializeAcceptedAnswers(ins.answer) : null,
+      position: ins.position,
+    });
+    ins.choices.forEach((ch, ci) => {
+      choiceRows.push({
+        id: newId(),
+        questionId: qId,
+        text: ch.text,
+        isCorrect: ch.isCorrect ? 1 : 0,
+        position: ci,
+      });
+    });
+  }
+  for (const rows of chunk(questionRows, QUESTION_ROWS_PER_STMT)) {
+    stmts.push(d.insert(question).values(rows));
+  }
+  for (const rows of chunk(choiceRows, CHOICE_ROWS_PER_STMT)) {
+    stmts.push(d.insert(choice).values(rows));
+  }
+  return stmts;
+}
+
+// Apply a published-quiz edit atomically: meta (title/description) + the diff plan
+// in one D1 batch. Caller has verified ownership, run planPublishedEdit (no problems)
+// and the edit gate (validateForPublish on the resulting active set) — ADR-0014.
+export async function applyPublishedEdit(
+  env: Bindings,
+  quizId: string,
+  meta: { title: string; description: string | null },
+  plan: EditPlan,
+): Promise<void> {
+  const d = db(env);
+  const stmts: [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]] = [
+    d
+      .update(quiz)
+      .set({ title: meta.title, description: meta.description, updatedAt: Date.now() })
+      .where(eq(quiz.id, quizId)),
+    ...publishedEditStatements(d, quizId, plan),
+  ];
   await d.batch(stmts);
 }
 

@@ -4,20 +4,23 @@
 // Mirrors the domain/report.ts const-tuple → union pattern.
 export const API_ERROR_CODES = [
   "cannot_report_self",
-  "cannot_restructure_published",
   "csrf_origin_mismatch",
+  "duplicate_question_id",
   "insufficient_scope",
   "invalid_body",
   "invalid_choice",
   "not_allowed_creator",
   "not_draft",
   "not_found",
+  "not_gradeable",
   "not_publishable",
+  "question_type_immutable",
   "rate_limited",
   "session_required",
   "target_not_found",
   "unauthorized",
   "unknown_question",
+  "unknown_question_id",
   "wrong_answer_type",
 ] as const;
 

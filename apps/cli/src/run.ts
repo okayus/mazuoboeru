@@ -11,6 +11,8 @@ import {
   type Outcome,
   publishOutcome,
   publishRequest,
+  updateOutcome,
+  updateRequest,
   whoamiOutcome,
 } from "./request.ts";
 
@@ -75,7 +77,7 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
       const res = await io.fetch(url, init);
       return emit(io, getOutcome(res.status, await parseJsonResponse(res), command.id));
     }
-    if (command.kind === "create") {
+    if (command.kind === "create" || command.kind === "update") {
       const raw = command.file === null ? await io.readStdin() : await io.readFile(command.file);
       // Fail fast on malformed input here, rather than as an opaque server 400.
       try {
@@ -83,6 +85,11 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
       } catch {
         io.stderr("input is not valid JSON");
         return 2;
+      }
+      if (command.kind === "update") {
+        const { url, init } = updateRequest(baseUrl, token, command.id, raw);
+        const res = await io.fetch(url, init);
+        return emit(io, updateOutcome(res.status, await parseJsonResponse(res), command.id));
       }
       const { url, init } = createRequest(baseUrl, token, raw);
       const res = await io.fetch(url, init);

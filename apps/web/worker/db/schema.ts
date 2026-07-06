@@ -135,6 +135,12 @@ export const question = sqliteTable(
     // accepted answers are graded server-side after Answer Normalization; never sent in
     // the public projection (like is_correct). cloze later: {"blanks":[{"accept":[...]}]}.
     answer: text("answer"),
+    // retired = removed from its published quiz by the author (ADR-0014) — a state, not
+    // a delete: answer/review_list keep referencing the row and dashboard history keeps
+    // showing it. Irreversible. Presentation reads filter to 'active'; history reads don't.
+    status: text("status", { enum: ["active", "retired"] })
+      .notNull()
+      .default("active"),
     position: integer("position").notNull(),
   },
   (t) => [index("idx_question_quiz").on(t.quizId, t.position)],

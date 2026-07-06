@@ -23,6 +23,21 @@ describe("parseArgs", () => {
     });
   });
 
+  it("parses update with id + file, and id-only as stdin", () => {
+    expect(parseArgs(["update", "q1", "quiz.json"])).toEqual({
+      kind: "update",
+      id: "q1",
+      file: "quiz.json",
+    });
+    expect(parseArgs(["update", "q1"])).toEqual({ kind: "update", id: "q1", file: null });
+  });
+
+  it("rejects update without an id, or with options", () => {
+    expect(parseArgs(["update"]).kind).toBe("usage-error");
+    expect(parseArgs(["update", "-f"]).kind).toBe("usage-error");
+    expect(parseArgs(["update", "q1", "--force"]).kind).toBe("usage-error");
+  });
+
   it("parses publish with an id", () => {
     expect(parseArgs(["publish", "abc-123"])).toEqual({ kind: "publish", id: "abc-123" });
   });

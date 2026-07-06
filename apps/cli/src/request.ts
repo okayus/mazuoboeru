@@ -33,6 +33,20 @@ export function createRequest(baseUrl: string, token: string, body: string): Htt
   };
 }
 
+// body is the raw JSON text of a PATCH /api/quizzes/:id request — the full desired
+// content (diff-apply happens server-side, ADR-0014).
+export function updateRequest(
+  baseUrl: string,
+  token: string,
+  id: string,
+  body: string,
+): HttpRequest {
+  return {
+    url: joinUrl(baseUrl, `/api/quizzes/${encodeURIComponent(id)}`),
+    init: { method: "PATCH", headers: authHeaders(token), body },
+  };
+}
+
 export function publishRequest(baseUrl: string, token: string, id: string): HttpRequest {
   return {
     url: joinUrl(baseUrl, `/api/quizzes/${encodeURIComponent(id)}/publish`),
@@ -74,6 +88,21 @@ export function createOutcome(status: number, body: Json): Outcome {
   if (status === 201 && body && typeof body.id === "string") {
     return { stdout: body.id, code: 0 };
   }
+  return { stderr: failureLine(status, body), code: 1 };
+}
+
+// Success prints the server's applied-diff summary so an agent can check intent
+// against effect (e.g. "retired:1" when it meant to retire exactly one — ADR-0014).
+// Draft updates return a plain {ok:true} (no summary — the replace is total).
+export function updateOutcome(status: number, body: Json, id: string): Outcome {
+  if (status === 200 && body && body.ok === true) {
+    const n = (k: string) => (typeof body[k] === "number" ? ` ${k}:${String(body[k])}` : "");
+    return {
+      stdout: `updated ${id}${n("updated")}${n("added")}${n("retired")}${n("unchanged")}`,
+      code: 0,
+    };
+  }
+  if (status === 404) return { stderr: `error: not_found ${id}`, code: 1 };
   return { stderr: failureLine(status, body), code: 1 };
 }
 

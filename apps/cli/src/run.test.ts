@@ -81,6 +81,27 @@ describe("run", () => {
     expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
   });
 
+  it("updates a quiz: PATCHes the raw body and prints the diff summary", async () => {
+    const fetch = vi.fn(async () =>
+      jsonResponse(200, { ok: true, updated: 1, added: 0, retired: 1, unchanged: 3 }),
+    ) as unknown as typeof globalThis.fetch;
+    const { io, cap } = makeIo({ fetch, readStdin: async () => '{"title":"t","questions":[]}' });
+    expect(await run(["update", "q-7"], io)).toBe(0);
+    expect(cap.out).toEqual(["updated q-7 updated:1 added:0 retired:1 unchanged:3"]);
+    const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toBe("https://mazuoboeru.shiraoka.workers.dev/api/quizzes/q-7");
+    expect((init as RequestInit).method).toBe("PATCH");
+    expect((init as RequestInit).body).toBe('{"title":"t","questions":[]}');
+  });
+
+  it("exits 2 on malformed update JSON without calling fetch", async () => {
+    const fetch = vi.fn() as unknown as typeof globalThis.fetch;
+    const { io, cap } = makeIo({ fetch, readStdin: async () => "nope" });
+    expect(await run(["update", "q-7"], io)).toBe(2);
+    expect(cap.err.join("\n")).toContain("not valid JSON");
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
   it("publishes: prints confirmation and exits 0", async () => {
     const { io, cap } = makeIo({ fetch: async () => jsonResponse(200, { ok: true }) });
     expect(await run(["publish", "q-7"], io)).toBe(0);

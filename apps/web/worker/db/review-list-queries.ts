@@ -4,9 +4,9 @@ import { db } from "./client";
 import { question, quiz, reviewList } from "./schema";
 
 // Review List = a user's private, question-level pool to revisit (CONTEXT.md Review
-// List; replaces the quiz-level favorite, ADR-0008). All reads filter to questions
-// whose quiz is currently published & not deleted — orphaned rows (quiz later
-// unpublished / soft-deleted) stay but drop off the view, mirroring the old favorite.
+// List; replaces the quiz-level favorite, ADR-0008). All reads filter to active (not
+// retired — ADR-0014) questions whose quiz is currently published & not deleted —
+// orphaned rows (question retired / quiz soft-deleted) stay but drop off the view.
 
 // Add a question to the Review List (idempotent — a second add is a no-op).
 export async function addToReviewList(
@@ -52,7 +52,14 @@ export async function publishedQuestionExists(env: Bindings, questionId: string)
     .select({ id: question.id })
     .from(question)
     .innerJoin(quiz, eq(question.quizId, quiz.id))
-    .where(and(eq(question.id, questionId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .where(
+      and(
+        eq(question.id, questionId),
+        eq(question.status, "active"),
+        eq(quiz.status, "published"),
+        isNull(quiz.deletedAt),
+      ),
+    )
     .limit(1);
   return rows.length > 0;
 }
@@ -83,6 +90,13 @@ export async function listReviewListItems(
     .from(reviewList)
     .innerJoin(question, eq(reviewList.questionId, question.id))
     .innerJoin(quiz, eq(question.quizId, quiz.id))
-    .where(and(eq(reviewList.userId, userId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .where(
+      and(
+        eq(reviewList.userId, userId),
+        eq(question.status, "active"),
+        eq(quiz.status, "published"),
+        isNull(quiz.deletedAt),
+      ),
+    )
     .orderBy(desc(reviewList.createdAt));
 }
