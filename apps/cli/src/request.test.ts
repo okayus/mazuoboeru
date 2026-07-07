@@ -9,6 +9,8 @@ import {
   mineRequest,
   publishOutcome,
   publishRequest,
+  updateOutcome,
+  updateRequest,
   whoamiOutcome,
 } from "./request.ts";
 
@@ -28,6 +30,58 @@ describe("createRequest", () => {
     expect(createRequest("https://x.example/", "t", "{}").url).toBe(
       "https://x.example/api/quizzes",
     );
+  });
+});
+
+describe("updateRequest", () => {
+  it("PATCHes /api/quizzes/:id with Bearer auth and the raw body", () => {
+    const { url, init } = updateRequest("https://api.test", "tok", "q 1", '{"title":"t"}');
+    expect(url).toBe("https://api.test/api/quizzes/q%201");
+    expect(init.method).toBe("PATCH");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
+    expect(init.body).toBe('{"title":"t"}');
+  });
+});
+
+describe("updateOutcome", () => {
+  it("prints the applied-diff summary on 200", () => {
+    const out = updateOutcome(
+      200,
+      { ok: true, updated: 1, added: 2, retired: 0, unchanged: 4 },
+      "q1",
+    );
+    expect(out).toEqual({ stdout: "updated q1 updated:1 added:2 retired:0 unchanged:4", code: 0 });
+  });
+
+  it("omits the summary for a draft update ({ok:true} only)", () => {
+    expect(updateOutcome(200, { ok: true }, "q1")).toEqual({ stdout: "updated q1", code: 0 });
+  });
+
+  it("reports not_found on 404", () => {
+    expect(updateOutcome(404, { error: "not_found" }, "q1")).toEqual({
+      stderr: "error: not_found q1",
+      code: 1,
+    });
+  });
+
+  it("surfaces the edit-gate errors on 422 not_gradeable", () => {
+    const out = updateOutcome(
+      422,
+      {
+        error: "not_gradeable",
+        errors: [{ code: "single_needs_exactly_one_correct", questionIndex: 0 }],
+      },
+      "q1",
+    );
+    expect(out.code).toBe(1);
+    expect(out.stderr).toContain("not_gradeable");
+    expect(out.stderr).toContain("single_needs_exactly_one_correct");
+  });
+
+  it("surfaces a type-change rejection (409 question_type_immutable)", () => {
+    const out = updateOutcome(409, { error: "question_type_immutable" }, "q1");
+    expect(out.code).toBe(1);
+    expect(out.stderr).toContain("question_type_immutable");
   });
 });
 

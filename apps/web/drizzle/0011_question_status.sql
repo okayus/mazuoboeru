@@ -1,0 +1,13 @@
+-- 0011: add question.status ('active' | 'retired') — ADR-0014 (published-quiz editing).
+--
+-- retired = the author removed the question from a published quiz. It is a state
+-- transition, NOT a delete: answer / review_list rows keep referencing the row
+-- (both FKs are NO ACTION — a physical DELETE would violate them), and history
+-- reads (dashboard) intentionally keep showing retired questions. Presentation
+-- reads (public projection, drill pools, review-list join, grading) filter to
+-- status='active'. The transition is irreversible (CONTEXT.md Retired).
+--
+-- Pure ADD COLUMN: no table rebuild, so none of the 0008 child-repoint dance is
+-- needed. Existing rows all become 'active' via the default (which also satisfies
+-- the CHECK for them).
+ALTER TABLE question ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired'));

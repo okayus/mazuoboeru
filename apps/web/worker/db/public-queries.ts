@@ -53,7 +53,7 @@ export async function listPublishedQuizzes(
     ? await d
         .select({ quizId: question.quizId, n: count() })
         .from(question)
-        .where(inArray(question.quizId, ids))
+        .where(and(inArray(question.quizId, ids), eq(question.status, "active")))
         .groupBy(question.quizId)
     : [];
   const countByQuiz = new Map(counts.map((r) => [r.quizId, Number(r.n)]));

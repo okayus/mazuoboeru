@@ -23,8 +23,9 @@ export type DrillQuestion = {
   choices: { id: string; text: string; position: number }[];
 };
 
-// The user's Review List as drillable questions, newest first, filtered to questions whose
-// quiz is currently published & not deleted (orphaned rows drop off the view, like the list).
+// The user's Review List as drillable questions, newest first, filtered to active (not
+// retired — ADR-0014) questions whose quiz is currently published & not deleted (orphaned
+// rows drop off the view, like the list).
 export async function loadDrillPool(env: Bindings, userId: string): Promise<DrillQuestion[]> {
   const d = db(env);
   const rows = await d
@@ -38,7 +39,14 @@ export async function loadDrillPool(env: Bindings, userId: string): Promise<Dril
     .from(reviewList)
     .innerJoin(question, eq(reviewList.questionId, question.id))
     .innerJoin(quiz, eq(question.quizId, quiz.id))
-    .where(and(eq(reviewList.userId, userId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .where(
+      and(
+        eq(reviewList.userId, userId),
+        eq(question.status, "active"),
+        eq(quiz.status, "published"),
+        isNull(quiz.deletedAt),
+      ),
+    )
     .orderBy(desc(reviewList.createdAt));
 
   const ids = rows.map((r) => r.questionId);
@@ -92,7 +100,7 @@ export async function loadQuizDrillPool(
   const rows = await d
     .select({ questionId: question.id, type: question.type, prompt: question.prompt })
     .from(question)
-    .where(eq(question.quizId, quizId))
+    .where(and(eq(question.quizId, quizId), eq(question.status, "active")))
     .orderBy(asc(question.position));
 
   const ids = rows.map((r) => r.questionId);
@@ -146,7 +154,14 @@ export async function loadDrillQuestion(
     })
     .from(question)
     .innerJoin(quiz, eq(question.quizId, quiz.id))
-    .where(and(eq(question.id, questionId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .where(
+      and(
+        eq(question.id, questionId),
+        eq(question.status, "active"),
+        eq(quiz.status, "published"),
+        isNull(quiz.deletedAt),
+      ),
+    )
     .limit(1);
   const r = rows[0];
   if (!r) return undefined;
@@ -190,7 +205,14 @@ export async function loadGradedQuestion(
     })
     .from(question)
     .innerJoin(quiz, eq(question.quizId, quiz.id))
-    .where(and(eq(question.id, questionId), eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .where(
+      and(
+        eq(question.id, questionId),
+        eq(question.status, "active"),
+        eq(quiz.status, "published"),
+        isNull(quiz.deletedAt),
+      ),
+    )
     .limit(1);
   const q = qrows[0];
   if (!q) return undefined;

@@ -91,7 +91,8 @@ user 1───* report          (通報)
 | --- | --- | --- |
 | id | text | PK |
 | quiz_id | text | FK → quiz |
-| type | text | CHECK制約で `mcq_single` / `mcq_multi` / `short`（[ADR-0012](adr/0012-short-answer-grading-normalization.md)・2026-06-21 実装）。`boolean` / `cloze` は今後の候補 |
+| type | text | CHECK制約で `mcq_single` / `mcq_multi` / `short`（[ADR-0012](adr/0012-short-answer-grading-normalization.md)・2026-06-21 実装）。`boolean` / `cloze` は今後の候補。**編集で変更不可**（変えるなら retire → 新設問＝[ADR-0014](adr/0014-published-quiz-editing-and-question-retirement.md)） |
+| status | text | CHECK制約で `active` / `retired`（[ADR-0014](adr/0014-published-quiz-editing-and-question-retirement.md)・migration 0011）。`retired`＝公開済みクイズから作者が外した設問（**不可逆**・[CONTEXT.md](../CONTEXT.md) Retired）。提示系 read（公開射影・ドリル・review_list join・採点受付）は `active` で絞り、履歴系 read（ダッシュボード）は絞らない |
 | prompt | text | 設問文（Markdown、サニタイズ） |
 | explanation | text? | 解説（**採点後に開示**） |
 | answer | text? | `short` の許容解 JSON `{"accept":[生文字列,...]}`（[ADR-0012](adr/0012-short-answer-grading-normalization.md)）。mcq は NULL。挑戦前は公開射影に出さない。`cloze` 化時は `{"blanks":[{"accept":[...]}]}` へ拡張 |

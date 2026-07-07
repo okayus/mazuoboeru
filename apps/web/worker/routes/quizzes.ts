@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth, requireCreator, requireScope, requireUser } from "../auth/middleware";
 import {
+  applyPublishedEdit,
   createDraftQuiz,
   listQuizzesByAuthor,
   loadQuizWithContent,
@@ -12,6 +13,11 @@ import {
   softDeleteQuiz,
   updateQuizMeta,
 } from "../db/quiz-queries";
+import {
+  type EditQuestionInput,
+  type ExistingQuestion,
+  planPublishedEdit,
+} from "../domain/quiz-edit";
 import { listQuizTags, setQuizTags, tagsForQuizzes } from "../db/tag-queries";
 import { validateForPublish } from "../domain/quiz-validation";
 import { MAX_ACCEPTED_ANSWERS, MAX_ANSWER_LEN } from "../domain/short-answer";
@@ -25,10 +31,14 @@ const choiceInput = z.object({
 });
 // Draft-permissive (a draft may be incomplete). `choices` allows empty for `short`; `answer`
 // holds the short-answer Accepted Answers (ADR-0012). The publish gate enforces gradeability.
+// `id` marks an existing question when editing a published quiz (diff-apply, ADR-0014);
+// ignored for creates and draft replaces. explanation/description accept null so the author
+// GET output round-trips straight back into a PATCH (get -> edit -> update, CLI flow).
 const questionInput = z.object({
+  id: z.string().min(1).optional(),
   type: z.enum(["mcq_single", "mcq_multi", "short"]),
   prompt: z.string().trim().min(1).max(2000),
-  explanation: z.string().trim().max(4000).optional(),
+  explanation: z.string().trim().max(4000).nullish(),
   choices: z.array(choiceInput).max(20),
   answer: z
     .array(z.string().trim().min(1).max(MAX_ANSWER_LEN))
@@ -40,7 +50,7 @@ const questionInput = z.object({
 // domain parseTags() does the real normalization / dedup / capping.
 const contentSchema = z.object({
   title: z.string().trim().max(200),
-  description: z.string().trim().max(4000).optional(),
+  description: z.string().trim().max(4000).nullish(),
   questions: z.array(questionInput).max(100),
   tags: z.array(z.string()).max(50).optional(),
 });
@@ -68,6 +78,32 @@ function toContentInput(data: ContentData): QuizContentInput {
       answer: q.answer ?? [],
     })),
   };
+}
+
+// The same payload questions, with ids kept, as diff-apply input (ADR-0014).
+function toEditQuestions(data: ContentData): EditQuestionInput[] {
+  return data.questions.map((q) => ({
+    id: q.id,
+    type: q.type,
+    prompt: q.prompt,
+    explanation: q.explanation ?? null,
+    answer: q.answer ?? [],
+    choices: q.choices.map((ch) => ({ text: ch.text, isCorrect: ch.isCorrect })),
+  }));
+}
+
+// The quiz's current active questions in the planner's shape (loadQuizWithContent
+// already filters to active — retired ids are "unknown" to the planner by design).
+function toExistingQuestions(loaded: LoadedQuiz): ExistingQuestion[] {
+  return loaded.questions.map((q) => ({
+    id: q.id,
+    type: q.type,
+    prompt: q.prompt,
+    explanation: q.explanation,
+    answer: q.answer,
+    choices: q.choices.map((ch) => ({ text: ch.text, isCorrect: ch.isCorrect })),
+    position: q.position,
+  }));
 }
 
 // Author view: full fidelity including is_correct + explanation (it's the editor).
@@ -139,8 +175,15 @@ export const quizzesRouter = new Hono<Env>()
     return c.json({ quiz: authorQuizJson(loaded, tags) });
   })
 
-  // Edit. Drafts: full content replace. Published/hidden: title/description only
-  // (ADR-0002 — restructuring a published quiz is rejected in MVP).
+  // Edit. Drafts: full content replace (destructive — draft questions are never
+  // referenced by answer/review_list, payload ids are ignored). Published/hidden:
+  // without `questions` = title/description only (unchanged minor edit); with
+  // `questions` = full-document diff-apply (ADR-0014) — id-preserving updates, id-less
+  // inserts, omitted ids retire, unknown/duplicate ids and type changes are rejected.
+  // The edit gate re-runs validateForPublish on the resulting active set (a published
+  // quiz must stay gradeable — ADR-0002 2026-07-06 追記); semantic major edits (correct
+  // answer changes etc.) are accepted and history is never regraded. hidden is treated
+  // like published so an author can fix reported content (the quiz stays hidden).
   .patch("/:id", requireAuth, requireScope("quiz:write"), async (c) => {
     const user = requireUser(c);
     const id = c.req.param("id");
@@ -159,18 +202,58 @@ export const quizzesRouter = new Hono<Env>()
       return c.json({ ok: true });
     }
 
-    if (body && typeof body === "object" && "questions" in body) {
-      return c.json(apiError("cannot_restructure_published"), 409);
+    if (!(body && typeof body === "object" && "questions" in body)) {
+      const parsed = metaSchema.safeParse(body);
+      if (!parsed.success) {
+        return c.json(apiError("invalid_body", { issues: parsed.error.issues }), 400);
+      }
+      await updateQuizMeta(c.env, id, {
+        title: parsed.data.title,
+        description: parsed.data.description ?? null,
+      });
+      return c.json({ ok: true });
     }
-    const parsed = metaSchema.safeParse(body);
+
+    const parsed = contentSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(apiError("invalid_body", { issues: parsed.error.issues }), 400);
     }
-    await updateQuizMeta(c.env, id, {
+    const planned = planPublishedEdit(toExistingQuestions(loaded), toEditQuestions(parsed.data));
+    if (!planned.ok) {
+      // A typo'd id must fail loudly, never silently retire + re-insert (ADR-0014).
+      if (planned.problems.some((p) => p.kind === "type_change")) {
+        return c.json(apiError("question_type_immutable", { problems: planned.problems }), 409);
+      }
+      if (planned.problems.some((p) => p.kind === "unknown_question_id")) {
+        return c.json(apiError("unknown_question_id", { problems: planned.problems }), 400);
+      }
+      return c.json(apiError("duplicate_question_id", { problems: planned.problems }), 400);
+    }
+    const gateErrors = validateForPublish({
       title: parsed.data.title,
-      description: parsed.data.description ?? null,
+      questions: parsed.data.questions.map((q) => ({
+        type: q.type,
+        choices: q.choices.map((ch) => ({ isCorrect: ch.isCorrect })),
+        acceptedAnswers: q.answer ?? [],
+      })),
     });
-    return c.json({ ok: true });
+    if (gateErrors.length > 0) {
+      return c.json(apiError("not_gradeable", { errors: gateErrors }), 422);
+    }
+    await applyPublishedEdit(
+      c.env,
+      id,
+      { title: parsed.data.title, description: parsed.data.description ?? null },
+      planned.plan,
+    );
+    // The applied diff, so a CLI/agent can check intent against effect (ADR-0014).
+    return c.json({
+      ok: true,
+      updated: planned.plan.updates.length,
+      added: planned.plan.inserts.length,
+      retired: planned.plan.retireIds.length,
+      unchanged: planned.plan.unchangedIds.length,
+    });
   })
 
   // The publish gate: irreversible draft -> published, server-enforced gradeability.
