@@ -45,9 +45,16 @@ node apps/cli/src/index.ts list | grep -P '\tdraft\t' | cut -f1   # draft の id
 # クイズ1件を JSON で表示 (全内容・jq 可)
 node apps/cli/src/index.ts get "$id" | jq .questions
 
+# ヘルプとバージョン
+node apps/cli/src/index.ts help              # 全体 (コマンド一覧と env)
+node apps/cli/src/index.ts help update       # コマンド別の詳細 (update --help でも同じ)
+node apps/cli/src/index.ts --version         # package.json の version を1行出力
+
 # workspace スクリプト経由でも可
 pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 ```
+
+引数の扱いは wrangler 風に厳密: 不明コマンドは **Did-you-mean**（`mzo lst` → `Did you mean 'mzo list'?`、一意接頭辞 or 編集距離 ≤2）、引数不足はそのコマンドの **Usage 行つき**で exit 2、**余剰引数は黙って無視せずエラー**（`mzo publish id1 id2` は `unexpected argument: id2`。typo が静かな事故にならない）。
 
 `publish` は **明示・不可逆**（draft → published）。create は常に draft を作る。
 `update` は「**望む最終形**」を丸ごと送る（サーバが差分適用）: 設問の `id` あり＝上書き（**type は変更不可**＝409）／`id` なし＝追加／**既存 id をペイロードから省くと、公開済みならその設問は retired（不可逆）**・draft なら削除。誤 id は 400（黙って新規扱いにしない）。応答の diff サマリ（`updated:N added:N retired:N unchanged:N`）で意図どおりか確認すること。公開済みは常に採点可能性（設問 ≥1・選択肢 ≥2＋正解数・許容解 ≥1）を保つ必要があり、崩す編集は 422 `not_gradeable`。
@@ -98,7 +105,7 @@ pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 
 - **stdout** = データ（create は新 id を bare 1行 / update は `updated <id>` ＋公開済みなら diff サマリ / publish は `published <id>` / list はタブ区切り行 / get は整形 JSON / whoami はユーザ行）。`id=$(… create …)` が成立。
 - **stderr** = 診断。
-- 終了コード: `0` 成功 / `1` API・実行時エラー（401/403/404/409/422/ネットワーク）/ `2` 使い方・設定エラー（PAT 未設定・不正 JSON・不明コマンド）。
+- 終了コード: `0` 成功 / `1` API・実行時エラー（401/403/404/409/422/ネットワーク）/ `2` 使い方・設定エラー（PAT 未設定・不正 JSON・不明コマンド・引数不足/余剰）。使い方エラーは stderr に `error:` 行＋コマンド別 Usage（不明コマンドなら Did-you-mean）を出す。
 
 ## 開発
 
