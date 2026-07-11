@@ -38,6 +38,33 @@ describe("run", () => {
     expect(cap.out.join("\n")).toContain("Usage");
   });
 
+  it("prints per-command help on `<cmd> --help` and exits 0 without env/network", async () => {
+    const fetch = vi.fn() as unknown as typeof globalThis.fetch;
+    const { io, cap } = makeIo({ env: {}, fetch });
+    expect(await run(["create", "--help"], io)).toBe(0);
+    expect(cap.out.join("\n")).toContain("mzo create");
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
+  it("prints the version on --version and exits 0", async () => {
+    const { io, cap } = makeIo({ env: {} });
+    expect(await run(["--version"], io)).toBe(0);
+    expect(cap.out).toHaveLength(1);
+    expect(cap.out[0]).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it("suggests the nearest command on a typo and exits 2", async () => {
+    const { io, cap } = makeIo();
+    expect(await run(["lst"], io)).toBe(2);
+    expect(cap.err.join("\n")).toContain("Did you mean 'mzo list'?");
+  });
+
+  it("prints the command usage line when an argument is missing", async () => {
+    const { io, cap } = makeIo();
+    expect(await run(["update"], io)).toBe(2);
+    expect(cap.err.join("\n")).toContain("Usage: mzo update <id> [file.json]");
+  });
+
   it("exits 2 when MAZUOBOERU_PAT is missing", async () => {
     const { io, cap } = makeIo({ env: {} });
     expect(await run(["create"], io)).toBe(2);

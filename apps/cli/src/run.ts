@@ -1,4 +1,4 @@
-import { parseArgs, usageText } from "./cli.ts";
+import { helpText, parseArgs, usageErrorText, usageText, versionText } from "./cli.ts";
 import {
   createOutcome,
   createRequest,
@@ -46,17 +46,21 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
   const command = parseArgs(argv);
 
   if (command.kind === "help") {
-    io.stdout(usageText());
+    io.stdout(command.topic === null ? usageText() : helpText(command.topic));
+    return 0;
+  }
+  if (command.kind === "version") {
+    io.stdout(versionText());
     return 0;
   }
   if (command.kind === "usage-error") {
-    io.stderr(command.message);
+    io.stderr(usageErrorText(command));
     return 2;
   }
 
   const token = io.env("MAZUOBOERU_PAT");
   if (!token) {
-    io.stderr("MAZUOBOERU_PAT is required (mint one in the web Settings page)");
+    io.stderr("error: MAZUOBOERU_PAT is required (mint one in the web Settings page)");
     return 2;
   }
   const baseUrl = io.env("MAZUOBOERU_BASE_URL") ?? DEFAULT_BASE_URL;
@@ -83,7 +87,7 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
       try {
         JSON.parse(raw);
       } catch {
-        io.stderr("input is not valid JSON");
+        io.stderr("error: input is not valid JSON");
         return 2;
       }
       if (command.kind === "update") {
