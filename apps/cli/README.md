@@ -3,12 +3,24 @@
 PAT でクイズを作成・編集・公開する薄い CLI。主用途は **AI エージェントによるクイズ量産**。
 入力は `POST`/`PATCH /api/quizzes` の body そのもの（薄いパイプ＝検証はサーバ側 zod 一手）。
 
-- 設計判断: [ADR-0001](../../docs/adr/0001-auth-via-oauth-and-pat.md)（PAT）/ [ADR-0002](../../docs/adr/0002-publish-flow-and-edit-rules.md)（公開は明示・不可逆）/ [ADR-0005](../../docs/adr/0005-node24-native-ts-execution.md)（node24・ネイティブ TS 実行）/ [ADR-0014](../../docs/adr/0014-published-quiz-editing-and-question-retirement.md)（公開後編集＝diff-apply・設問の retire）。
+- 設計判断（リンクは npm ページでも切れないよう絶対 URL）: [ADR-0001](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0001-auth-via-oauth-and-pat.md)（PAT）/ [ADR-0002](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0002-publish-flow-and-edit-rules.md)（公開は明示・不可逆）/ [ADR-0005](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0005-node24-native-ts-execution.md)（node24・ネイティブ TS 実行）/ [ADR-0014](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0014-published-quiz-editing-and-question-retirement.md)（公開後編集＝diff-apply・設問の retire）/ [ADR-0015](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0015-cli-npm-distribution.md)（npm 配信＝`vp pack`・ホスト手動 publish）。
 - **class なし・関数のみ**。ドメイン（argv パース・リクエスト構築・応答→終了コード写像）は純粋関数、I/O は `src/index.ts` の境界に隔離。
+
+## インストール
+
+```sh
+npm i -g @mazuoboeru/cli     # mzo コマンドが入る
+mzo --version
+
+# または一発実行
+npx @mazuoboeru/cli help
+```
+
+リポジトリ内で開発する場合は install 不要（src を直実行＝§開発）。
 
 ## 必要環境
 
-- **Node ≥ 22.18**（`.ts` をネイティブ実行＝ビルド/トランスパイル不要、ADR-0005）。リポは node24 で統一。
+- **Node ≥ 22.18**。配布物はビルド済み単一 ESM・実行時依存ゼロ。リポ内で src を直実行する場合も同じ下限（`.ts` のネイティブ実行＝type stripping、ADR-0005）。リポは node24 で統一。
 
 ## 認証
 
@@ -24,33 +36,34 @@ export MAZUOBOERU_BASE_URL='http://localhost:5373'
 
 ```sh
 # 作成 (file or stdin)。成功で draft の id を1行 stdout に出す
-node apps/cli/src/index.ts create quiz.json
-cat quiz.json | node apps/cli/src/index.ts create
+mzo create quiz.json
+cat quiz.json | mzo create
 
 # 量産して即公開 (id を捕まえて publish に渡す)
-id=$(node apps/cli/src/index.ts create quiz.json) && node apps/cli/src/index.ts publish "$id"
+id=$(mzo create quiz.json) && mzo publish "$id"
 
 # 編集 (公開済みも可・ADR-0014)。get の出力を編集して丸ごと再送するのが基本
-node apps/cli/src/index.ts get "$id" | jq .  > quiz.json   # 設問に id が付いた全内容
-$EDITOR quiz.json                                          # 直す (id は残す)
-node apps/cli/src/index.ts update "$id" quiz.json          # → updated <id> updated:1 … retired:0 …
+mzo get "$id" | jq . > quiz.json   # 設問に id が付いた全内容
+$EDITOR quiz.json                  # 直す (id は残す)
+mzo update "$id" quiz.json         # → updated <id> updated:1 … retired:0 …
 
 # PAT の疎通確認 (認証中のユーザを表示)
-node apps/cli/src/index.ts whoami            # → Alice (u_xxx, user)
+mzo whoami                         # → Alice (u_xxx, user)
 
 # 自分のクイズ一覧 (id<TAB>status<TAB>title の1行/件)
-node apps/cli/src/index.ts list
-node apps/cli/src/index.ts list | grep -P '\tdraft\t' | cut -f1   # draft の id だけ
+mzo list
+mzo list | grep -P '\tdraft\t' | cut -f1   # draft の id だけ
 
 # クイズ1件を JSON で表示 (全内容・jq 可)
-node apps/cli/src/index.ts get "$id" | jq .questions
+mzo get "$id" | jq .questions
 
 # ヘルプとバージョン
-node apps/cli/src/index.ts help              # 全体 (コマンド一覧と env)
-node apps/cli/src/index.ts help update       # コマンド別の詳細 (update --help でも同じ)
-node apps/cli/src/index.ts --version         # package.json の version を1行出力
+mzo help                           # 全体 (コマンド一覧と env)
+mzo help update                    # コマンド別の詳細 (update --help でも同じ)
+mzo --version                      # バージョンを1行出力
 
-# workspace スクリプト経由でも可
+# リポ内では install せず src 直実行でも同じ (上の `mzo` を読み替え)
+node apps/cli/src/index.ts create quiz.json
 pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 ```
 
@@ -88,7 +101,7 @@ pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 }
 ```
 
-一問一答（[ADR-0012](../../docs/adr/0012-short-answer-grading-normalization.md)）は `type: "short"` で、`choices` の代わりに `answer`（許容解の配列・先頭が正準解・≤10 件・各 ≤200 字）を持つ:
+一問一答（[ADR-0012](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0012-short-answer-grading-normalization.md)）は `type: "short"` で、`choices` の代わりに `answer`（許容解の配列・先頭が正準解・≤10 件・各 ≤200 字）を持つ:
 
 ```json
 {
@@ -99,7 +112,7 @@ pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 }
 ```
 
-`type` は `mcq_single` / `mcq_multi` / `short`（**update で type は変更不可**＝設問を外して新設問として追加する）。制約（タイトル ≤200、設問 ≤100/クイズ、選択肢 ≤20/**問**〔クイズ合計の上限は無い〕等）はサーバが検証し、違反は 400（`issues` を stderr に出す）。公開時の採点可能性（タイトル必須・設問 ≥1・選択肢 ≥2＋正解数・short は許容解 ≥1）はサーバの publish ゲートが強制し、満たさなければ 422。同じ検証は**公開済みクイズの update にも**かかる（[ADR-0014](../../docs/adr/0014-published-quiz-editing-and-question-retirement.md)・422 `not_gradeable`）。
+`type` は `mcq_single` / `mcq_multi` / `short`（**update で type は変更不可**＝設問を外して新設問として追加する）。制約（タイトル ≤200、設問 ≤100/クイズ、選択肢 ≤20/**問**〔クイズ合計の上限は無い〕等）はサーバが検証し、違反は 400（`issues` を stderr に出す）。公開時の採点可能性（タイトル必須・設問 ≥1・選択肢 ≥2＋正解数・short は許容解 ≥1）はサーバの publish ゲートが強制し、満たさなければ 422。同じ検証は**公開済みクイズの update にも**かかる（[ADR-0014](https://github.com/okayus/mazuoboeru/blob/main/docs/adr/0014-published-quiz-editing-and-question-retirement.md)・422 `not_gradeable`）。
 
 ## 出力契約
 
@@ -112,4 +125,8 @@ pnpm --filter @mazuoboeru/cli mzo -- create quiz.json
 ```sh
 pnpm --filter @mazuoboeru/cli test    # vitest (純粋関数 + 注入 fetch の境界)
 pnpm --filter @mazuoboeru/cli check   # tsc --noEmit
+pnpm --filter @mazuoboeru/cli build   # vp pack → dist/index.mjs (単一 ESM・shebang/実行権限つき)
 ```
+
+リリース（npm publish）は**ホスト手動**＝npm 資格情報をサンドボックス/CI に置かない（ADR-0015）。
+手順は [docs/dev-environment.md](https://github.com/okayus/mazuoboeru/blob/main/docs/dev-environment.md) の §CLI の npm リリース。
