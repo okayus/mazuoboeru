@@ -1,18 +1,34 @@
 {
   "name": "@mazuoboeru/cli",
-  "version": "0.0.0",
-  "private": true,
-  "bin": {
-    "mzo": "./src/index.ts"
+  "version": "0.1.0",
+  "description": "まず覚える (mazuoboeru) のクイズを PAT で作成・編集・公開する CLI (mzo)",
+  "homepage": "https://github.com/okayus/mazuoboeru/tree/main/apps/cli#readme",
+  "bugs": "https://github.com/okayus/mazuoboeru/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okayus/mazuoboeru.git",
+    "directory": "apps/cli"
   },
+  "bin": {
+    "mzo": "./dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "mzo": "node src/index.ts",
+    "build": "vp pack src/index.ts",
     "check": "tsc --noEmit",
     "test": "vp test run",
     "lint": "vp lint -c ../../.oxlintrc.json --deny-warnings",
     "fmt": "vp fmt",
-    "fmt:check": "vp fmt --check"
+    "fmt:check": "vp fmt --check",
+    "prepublishOnly": "pnpm check && pnpm lint && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
