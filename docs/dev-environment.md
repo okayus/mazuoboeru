@@ -69,7 +69,8 @@ npm の資格情報は**ホストにしか置かない**（サンドボックス
 ### 初回セレモニー（一度だけ・人手）
 
 1. npmjs.com にログインし **org `mazuoboeru` を作成**（無料・public パッケージ用）。scope は package.json の `name`（`@mazuoboeru/cli`）と一致必須＝org 名が取られていたら publish 前に要再相談。
-2. ホストで `npm login`（2FA 有効なら publish 時に OTP を求められる）。
+2. ホストで `npm login`（web方式。ブラウザでログイン承認するまでターミナルはポーリング待機＝Ctrl+Cで打ち切らない）。
+3. **アカウントの2FAを `auth-and-writes` で有効化**（`npm profile enable-2fa auth-and-writes` または npmjs.com の Account settings。認証アプリでQRスキャン→リカバリーコード保存）。**必須**: npmの現行ポリシー上、2FA未設定だと publish 時に `npm error code E403` になる（2026-08-13 実機確認）。`auth-only` では要求を満たさないので `auth-and-writes` を選ぶこと。
 
 ### 毎回のリリース手順
 
@@ -78,12 +79,15 @@ npm の資格情報は**ホストにしか置かない**（サンドボックス
 
    ```sh
    git switch main && git pull
-   pnpm -C apps/cli publish
+   cd apps/cli
+   pnpm publish
    ```
 
+   - ⚠️ **`pnpm -C apps/cli publish`（root から `-C` 経由）は使わない**: pnpm 9.15.0 で委譲先 `npm publish` の argv に `-C` の値が余分な位置引数として混入し `npm error code EUSAGE` になる不具合を実機確認済み（2026-08-13）。**必ず `cd apps/cli` してから `pnpm publish`** を実行する。
    - `prepublishOnly`（tsc → lint → test → `vp pack`）が全ゲートを自動実行＝publish される dist は常に検査済み・ビルド直後（`mzo --version` の焼き込みもここで一致する）。
    - pnpm の git チェック（clean tree・main 上）も効く。
    - **同一 version の再 publish は registry が拒否**＝「publish が落ちる＝bump し忘れ」のシグナル（事前チェック儀式は不要）。
+   - **アカウントの2FAが `auth-and-writes` で有効でないと `npm error code E403` になる**（npmの現行ポリシー。2026-08-13 実機確認）。未設定なら `npm profile enable-2fa auth-and-writes` で有効化してから再実行。有効なら publish 時にOTP入力を求められる。
 
 3. 反映確認（コンテナ内からでも可・registry.npmjs.org は egress allowlist 済み）:
 
