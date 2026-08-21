@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 // any path; hash routing keeps navigation purely client-side.
 export type Route =
   | { name: "timeline" }
+  | { name: "tags" }
   | { name: "login" }
   | { name: "create" }
   | { name: "mine" }
@@ -15,6 +16,7 @@ export type Route =
 
 function parse(hash: string): Route {
   const path = hash.replace(/^#/, "") || "/";
+  if (path === "/tags") return { name: "tags" };
   if (path === "/login") return { name: "login" };
   if (path === "/create") return { name: "create" };
   if (path === "/mine") return { name: "mine" };

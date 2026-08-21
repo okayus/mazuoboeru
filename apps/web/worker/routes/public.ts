@@ -1,10 +1,17 @@
 import { groupTags, relatedTagCounts } from "@mazuoboeru/core";
 import { Hono } from "hono";
 import { listPublishedQuizzes, loadPublishedQuiz } from "../db/public-queries";
-import { listQuizTags, publishedQuizTagRows, tagIdsByKeys, tagNameMap } from "../db/tag-queries";
+import {
+  listQuizTags,
+  publishedQuizTagRows,
+  publishedTagGraphRows,
+  tagIdsByKeys,
+  tagNameMap,
+} from "../db/tag-queries";
 import { normalizeTag } from "../domain/tag";
 import { apiError } from "../http/errors";
 import { publicQuizJson } from "../presenters/quiz";
+import { tagGraphJson } from "../presenters/tag-graph";
 import type { Env } from "../types";
 
 // `?tags=a&tags=b` (repeated, never comma-joined — a tag name may contain a comma) →
@@ -56,4 +63,12 @@ export const publicRouter = new Hono<Env>()
     if (!found) return c.json(apiError("not_found"), 404);
     const tags = await listQuizTags(c.env, found.loaded.quiz.id);
     return c.json({ quiz: publicQuizJson(found.loaded, found.authorDisplayName, tags) });
-  });
+  })
+
+  // The tag-exploration graph's raw material (ADR-0016): every published quiz's authored
+  // tag set plus the tags on them — no cap (the timeline's newest-50 is a list concern).
+  // Counts / co-occurrence / AND narrowing / Related Tags / the matching list are derived
+  // on the client (`#/tags`) with the same @mazuoboeru/core functions `?tags=` uses, so
+  // both surfaces agree. Built from published rows only, so a tag that exists only on
+  // drafts or hidden quizzes is absent (its presence would be an existence signal).
+  .get("/tag-graph", async (c) => c.json(tagGraphJson(await publishedTagGraphRows(c.env))));

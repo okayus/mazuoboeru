@@ -9,6 +9,7 @@ import { MyQuizzes } from "./views/MyQuizzes";
 import { QuizDrill } from "./views/QuizDrill";
 import { ReviewList } from "./views/ReviewList";
 import { Settings } from "./views/Settings";
+import { TagExplorer } from "./views/TagExplorer";
 import { Timeline } from "./views/Timeline";
 
 export function App() {
@@ -34,6 +35,7 @@ export function App() {
         </a>
         <nav>
           <a href="#/">タイムライン</a>
+          <a href="#/tags">タグ</a>
           {user ? <a href="#/mine">マイクイズ</a> : null}
           {user ? <a href="#/dashboard">ダッシュボード</a> : null}
           {user ? <a href="#/review-list">my hot list</a> : null}
@@ -76,6 +78,8 @@ function View({ route }: { route: Route }) {
       return <QuizDrill quizId={route.quizId} />;
     case "settings":
       return <Settings />;
+    case "tags":
+      return <TagExplorer />;
     case "timeline":
       return <Timeline />;
   }

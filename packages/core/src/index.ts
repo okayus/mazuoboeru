@@ -6,3 +6,4 @@ export {
   type TagCount,
   type TaggedItem,
 } from "./related-tags";
+export { cooccurrenceEdges, tagGraph, type TagEdge, type TagGraph } from "./tag-graph";

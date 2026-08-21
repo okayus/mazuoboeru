@@ -390,6 +390,80 @@ button.tag {
 .tag-nav .tags {
   align-items: center;
 }
+.tag.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.tag-graph-link {
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-left: 4px;
+}
+
+/* Tag-exploration graph (#/tags): d3-force layout drawn as React SVG (TagGraphCanvas). */
+.tag-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 12px 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  user-select: none;
+}
+.tag-graph line {
+  /* stroke-opacity is an attribute (∝ co-occurrence count, TagGraphCanvas). */
+  stroke: #b4bacb;
+}
+.tag-graph.hovering line:not(.lit) {
+  stroke-opacity: 0.06;
+}
+.tag-graph line.lit {
+  stroke: var(--accent);
+  stroke-opacity: 0.9;
+}
+.tag-graph .node.dim {
+  opacity: 0.3;
+}
+.tag-graph .node {
+  cursor: pointer;
+  outline: none;
+}
+.tag-graph .node circle {
+  fill: #dfe3fb;
+  stroke: var(--accent);
+  stroke-width: 1.2;
+}
+.tag-graph .node:hover circle,
+.tag-graph .node:focus-visible circle {
+  stroke-width: 2.5;
+}
+.tag-graph .node.neighbour circle {
+  fill: #c3c9f7;
+}
+.tag-graph .node.selected circle {
+  fill: var(--accent);
+}
+.tag-graph text {
+  /* font-size / stroke-width are attributes (scaled with the zoom by TagGraphCanvas). */
+  text-anchor: middle;
+  fill: var(--fg);
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.tag-graph .node.selected text {
+  font-weight: 600;
+}
+.card.compact {
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.card.compact h3 {
+  font-size: 1rem;
+  margin: 0 0 4px;
+}
 
 /* Single-question Drill dialog (opened from "my hot list"). Native <dialog> modal. */
 .drill-dialog {

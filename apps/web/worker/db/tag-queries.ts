@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { NormalizedTag } from "../domain/tag";
 import { newId } from "../lib/id";
@@ -98,6 +98,26 @@ export async function publishedQuizTagRows(
     .from(quizTags)
     .innerJoin(quiz, eq(quizTags.quizId, quiz.id))
     .where(and(eq(quiz.status, "published"), isNull(quiz.deletedAt)));
+}
+
+// The same published incidence, joined with what the tag-exploration graph needs to show
+// it: the quiz title and the tag's display name (ADR-0016). Newest quiz first. Same
+// canonical public filter as above — a tag that exists only on drafts must not appear.
+export async function publishedTagGraphRows(
+  env: Bindings,
+): Promise<Array<{ quizId: string; title: string; tagId: string; tagName: string }>> {
+  return db(env)
+    .select({
+      quizId: quizTags.quizId,
+      title: quiz.title,
+      tagId: quizTags.tagId,
+      tagName: tag.name,
+    })
+    .from(quizTags)
+    .innerJoin(quiz, eq(quizTags.quizId, quiz.id))
+    .innerJoin(tag, eq(quizTags.tagId, tag.id))
+    .where(and(eq(quiz.status, "published"), isNull(quiz.deletedAt)))
+    .orderBy(desc(quiz.publishedAt), quiz.id, tag.name);
 }
 
 // Tag id → display name map, for buckets/counts keyed by id (dashboard, Related Tags).
