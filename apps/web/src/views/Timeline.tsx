@@ -4,7 +4,7 @@ import { api } from "../api";
 import { QuizMarkdown } from "../QuizMarkdown";
 
 // Chip caps. With nothing selected `related` is the whole popularity list (100+ tags in
-// prod); the tag-exploration graph (next slice) is the full view — the timeline shows the head.
+// prod); the tag-exploration graph (#/tags) is the full view — the timeline shows the head.
 const POPULAR_LIMIT = 15;
 const RELATED_LIMIT = 30;
 
@@ -54,6 +54,9 @@ export function Timeline() {
                 {r.name} <span className="count">{r.count}</span>
               </button>
             ))}
+            <a className="tag-graph-link" href="#/tags">
+              グラフで探す →
+            </a>
           </div>
         </div>
       ) : null}

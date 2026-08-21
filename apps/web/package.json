@@ -23,6 +23,7 @@
   "dependencies": {
     "@mazuoboeru/core": "workspace:*",
     "arctic": "^3.7.0",
+    "d3-force": "^3.0.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0",
     "react": "^19.0.0",
@@ -37,6 +38,7 @@
     "@cloudflare/vite-plugin": "^0.1.0",
     "@cloudflare/workers-types": "^4.20250328.0",
     "@playwright/test": "1.60.0",
+    "@types/d3-force": "^3.0.10",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

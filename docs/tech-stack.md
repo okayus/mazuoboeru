@@ -8,6 +8,7 @@
 - **React 19 + Vite + TypeScript**（kokemusu と共通）。
 - スタイリング: Tailwind CSS or CSS Modules。
 - 状態管理: React 標準 ＋ 必要なら軽量ライブラリ（Zustand 等、関数志向）。
+- グラフ描画: **d3-force のみ**（レイアウト計算）＋ React が SVG を描く（DOM は d3 に触らせない）。タグ探索グラフ `#/tags`（[ADR-0016](adr/0016-flat-tags-related-tags-derived-from-quizzes.md)）。レイアウトの純粋部分（半径・ラベル閾値・ノードの引き継ぎ）は `src/lib/tag-graph-layout.ts` で単体テスト。
 - Markdown 表示: **react-markdown ＋ rehype-sanitize**（生 HTML 非描画。単一コンポーネントに集約し mermaid・数式を保存形式の移行なしで将来差し替え可能に）。UGC を表示するため kokemusu より重要（[security.md](security.md)）。
 
 ## バックエンド / API
@@ -59,7 +60,7 @@ mazuoboeru/
 │   │   └── wrangler.jsonc
 │   └── cli/           # @mazuoboeru/cli    : CLI / AI エージェント用（PAT で API を叩く薄い層）※2026-06-15 最小実装（mzo）
 ├── packages/
-│   ├── core/          # @mazuoboeru/core   : SPA/worker 共有の純粋関数（Related Tags）※2026-08-21 新設（ADR-0016）
+│   ├── core/          # @mazuoboeru/core   : SPA/worker 共有の純粋関数（Related Tags・Tag Graph）※2026-08-21 新設（ADR-0016）
 │   └── db/            # @mazuoboeru/db     : Drizzle スキーマ & クエリ ※ロジック発生時に追加
 └── docs/              # 企画ドキュメント・ADR
 ```

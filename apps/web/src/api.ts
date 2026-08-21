@@ -25,6 +25,9 @@ export type TimelineItem = Ok<typeof client.api.public.quizzes.$get>["quizzes"][
 // Related Tags of the current selection (CONTEXT.md): name + how many matching quizzes carry it.
 export type RelatedTag = Ok<typeof client.api.public.quizzes.$get>["related"][number];
 
+// The tag-exploration graph's raw material: published quiz → tag ids, plus the tags (ADR-0016).
+export type TagGraphData = Ok<(typeof client.api.public)["tag-graph"]["$get"]>;
+
 export type PublicQuiz = Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>["quiz"];
 export type PublicQuestion = PublicQuiz["questions"][number];
 export type PublicChoice = PublicQuestion["choices"][number];
@@ -116,6 +119,7 @@ export const api = {
     ),
   publicQuiz: (id: string) =>
     request<Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>>(`/public/quizzes/${id}`),
+  tagGraph: () => request<TagGraphData>("/public/tag-graph"),
 
   myQuizzes: () => request<Ok<typeof client.api.quizzes.mine.$get>>("/quizzes/mine"),
   createQuiz: (input: QuizInput) =>
