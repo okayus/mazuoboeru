@@ -45,7 +45,7 @@
 MVP から **pnpm workspaces** で分割する。パッケージ名は `@mazuoboeru/*` 規約。
 **`server/` パッケージは作らない**: `@cloudflare/vite-plugin` が SPA と Worker を1つの Worker にビルドするため、`apps/web` に SPA＋Worker＋`wrangler.jsonc` を同梱するのが正（2026-06-11 確定。[ADR-0003](adr/0003-secrets-strategy.md) の Workers Builds root directory = `apps/web` とも一対一）。Worker 側ロジックの肥大化で分離が必要になったら `packages/` への切り出しを再検討する。
 
-- **Phase 1 のドメイン／DB ロジックは `apps/web/worker/` 内に同居**（2026-06-12 グリル確定）: 採点等の純粋関数は `worker/domain/`、Drizzle スキーマ＆クエリは `worker/db/` に置く。consumer が worker のみのうちは `packages/{core,db}` を立てず、**第2コンシューマ（採点ロジックを必要とする CLI 等）が現れたら同名パッケージへ機械的に切り出す**（前身ディレクトリ名を packages 名に揃えてある）。「関数のみ・I/O は境界へ」は worker 内のディレクトリ境界（`domain/` は I/O を持たない）で担保し、route handler が D1 と純粋関数を繋ぐ。
+- **Phase 1 のドメイン／DB ロジックは `apps/web/worker/` 内に同居**（2026-06-12 グリル確定）: 採点等の純粋関数は `worker/domain/`、Drizzle スキーマ＆クエリは `worker/db/` に置く。consumer が worker のみのうちは `packages/{core,db}` を立てず、**第2コンシューマ（採点ロジックを必要とする CLI 等）が現れたら同名パッケージへ機械的に切り出す**（前身ディレクトリ名を packages 名に揃えてある）。**2026-08-21: 第1号として `packages/core`（`@mazuoboeru/core`）を新設**＝Related Tags の純粋関数を SPA（`src/`）と worker の両方が import する（[ADR-0016](adr/0016-flat-tags-related-tags-derived-from-quizzes.md)）。「関数のみ・I/O は境界へ」は worker 内のディレクトリ境界（`domain/` は I/O を持たない）で担保し、route handler が D1 と純粋関数を繋ぐ。
 
 ```
 mazuoboeru/
@@ -59,7 +59,7 @@ mazuoboeru/
 │   │   └── wrangler.jsonc
 │   └── cli/           # @mazuoboeru/cli    : CLI / AI エージェント用（PAT で API を叩く薄い層）※2026-06-15 最小実装（mzo）
 ├── packages/
-│   ├── core/          # @mazuoboeru/core   : 純粋関数（採点・集計）※ロジック発生時に追加
+│   ├── core/          # @mazuoboeru/core   : SPA/worker 共有の純粋関数（Related Tags）※2026-08-21 新設（ADR-0016）
 │   └── db/            # @mazuoboeru/db     : Drizzle スキーマ & クエリ ※ロジック発生時に追加
 └── docs/              # 企画ドキュメント・ADR
 ```

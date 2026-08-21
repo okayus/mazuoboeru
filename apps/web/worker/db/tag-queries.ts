@@ -1,11 +1,19 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { NormalizedTag } from "../domain/tag";
-import type { Edge } from "../domain/tag-graph";
 import { newId } from "../lib/id";
 import type { Bindings } from "../types";
 import { db } from "./client";
-import { quizTags, tag, tagEdge } from "./schema";
+import { quiz, quizTags, tag } from "./schema";
+
+// D1 binds at most 100 parameters per statement; id lists are chunked below that.
+const IN_CHUNK = 90;
+
+function chunks<T>(xs: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
+  return out;
+}
 
 // Replace a quiz's tags with `tags` (find-or-create each by key, then swap the
 // quiz_tags rows). Atomic via D1 batch. Pass [] to clear all tags. Callers
@@ -65,50 +73,43 @@ export async function listQuizTags(env: Bindings, quizId: string): Promise<strin
   return (await tagsForQuizzes(env, [quizId])).get(quizId) ?? [];
 }
 
-// Resolve a normalized tag key to its id (null if no such tag).
-export async function tagIdByKey(env: Bindings, key: string): Promise<string | null> {
-  const rows = await db(env).select({ id: tag.id }).from(tag).where(eq(tag.nameKey, key)).limit(1);
-  return rows[0]?.id ?? null;
-}
-
-// Quiz ids authored-tagged with ANY of the given tag ids (deduped). The broad-tag
-// filter passes a tag id plus its descendants (ADR-0007 effective match).
-export async function quizIdsWithTagIds(env: Bindings, tagIds: string[]): Promise<string[]> {
-  if (!tagIds.length) return [];
+// Resolve normalized tag keys to ids. Keys nobody has authored are simply absent.
+export async function tagIdsByKeys(env: Bindings, keys: string[]): Promise<Map<string, string>> {
+  const m = new Map<string, string>();
+  if (!keys.length) return m;
   const rows = await db(env)
-    .select({ quizId: quizTags.quizId })
-    .from(quizTags)
-    .where(inArray(quizTags.tagId, tagIds));
-  return [...new Set(rows.map((r) => r.quizId))];
-}
-
-// Display names for a set of tag ids (alphabetical) — for drill-down chips.
-export async function tagNamesByIds(env: Bindings, ids: string[]): Promise<string[]> {
-  if (!ids.length) return [];
-  const rows = await db(env)
-    .select({ name: tag.name })
+    .select({ id: tag.id, nameKey: tag.nameKey })
     .from(tag)
-    .where(inArray(tag.id, ids))
-    .orderBy(tag.name);
-  return rows.map((r) => r.name);
+    .where(inArray(tag.nameKey, keys));
+  for (const r of rows) m.set(r.nameKey, r.id);
+  return m;
 }
 
-// All subsumption edges. The tag graph is small — load once and traverse in memory
-// (worker/domain/tag-graph.ts).
-export async function loadTagEdges(env: Bindings): Promise<Edge[]> {
+// The published tag incidence: one (quiz, tag) row per authored tag of every published,
+// non-deleted quiz. This is the ONLY input the Related Tags pure functions
+// (@mazuoboeru/core) receive — drafts / hidden / deleted quizzes also have quiz_tags
+// rows, and a count is an existence signal, so the canonical public filter
+// (status='published' AND deleted_at IS NULL — ADR-0002) is applied here (ADR-0016).
+export async function publishedQuizTagRows(
+  env: Bindings,
+): Promise<Array<{ itemId: string; tagId: string }>> {
   return db(env)
-    .select({ narrowerId: tagEdge.narrowerId, broaderId: tagEdge.broaderId })
-    .from(tagEdge);
+    .select({ itemId: quizTags.quizId, tagId: quizTags.tagId })
+    .from(quizTags)
+    .innerJoin(quiz, eq(quizTags.quizId, quiz.id))
+    .where(and(eq(quiz.status, "published"), isNull(quiz.deletedAt)));
 }
 
-// Tag id → display name map, for buckets keyed by id (e.g. the dashboard).
+// Tag id → display name map, for buckets/counts keyed by id (dashboard, Related Tags).
+// Chunked: a popularity list or a heavy user's tag buckets can exceed D1's 100-param cap.
 export async function tagNameMap(env: Bindings, ids: string[]): Promise<Map<string, string>> {
   const m = new Map<string, string>();
-  if (!ids.length) return m;
-  const rows = await db(env)
-    .select({ id: tag.id, name: tag.name })
-    .from(tag)
-    .where(inArray(tag.id, ids));
-  for (const r of rows) m.set(r.id, r.name);
+  for (const part of chunks([...new Set(ids)], IN_CHUNK)) {
+    const rows = await db(env)
+      .select({ id: tag.id, name: tag.name })
+      .from(tag)
+      .where(inArray(tag.id, part));
+    for (const r of rows) m.set(r.id, r.name);
+  }
   return m;
 }

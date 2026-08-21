@@ -1,0 +1,20 @@
+{
+  "name": "@mazuoboeru/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "まず覚える (mazuoboeru) のクライアント／サーバ共有の純粋関数（I/O なし）",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vp test run",
+    "lint": "vp lint -c ../../.oxlintrc.json --deny-warnings",
+    "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

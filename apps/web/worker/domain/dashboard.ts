@@ -1,5 +1,3 @@
-import { ancestorIds, type Edge } from "./tag-graph";
-
 // Private learning-dashboard metrics — pure, per-answer, activity-framed (ADR-0006).
 // All counts are over the user's own `answer` rows (re-attempts included). No I/O.
 
@@ -46,19 +44,16 @@ export function computeStreak(
 export type AnswerFact = { isCorrect: boolean; quizId: string };
 export type TagBucket = { correct: number; total: number };
 
-// Bundle answers by EFFECTIVE tag (authored ∪ broader closure — ADR-0006/0007). An
-// answer counts toward every effective tag of its quiz (a JS answer rolls up into
-// programming), so per-tag totals can exceed the overall answer count by design.
-// Answers whose quiz has no authored tags go to the untagged bucket. Keyed by tag id
-// (the caller resolves display names).
+// Bundle answers by the AUTHORED tags of their quiz (ADR-0006 as amended by ADR-0016:
+// tags are flat, nothing rolls up). An answer counts toward every tag of its quiz, so
+// per-tag totals can exceed the overall answer count by design. Answers whose quiz has no
+// tags go to the untagged bucket. Keyed by tag id (the caller resolves display names).
 export function bundleTagAccuracy(
   answers: AnswerFact[],
-  authoredByQuiz: Map<string, string[]>,
-  edges: Edge[],
+  tagIdsByQuiz: Map<string, string[]>,
 ): { byTagId: Map<string, TagBucket>; untagged: TagBucket } {
   const byTagId = new Map<string, TagBucket>();
   const untagged: TagBucket = { correct: 0, total: 0 };
-  const effByQuiz = new Map<string, string[]>();
 
   const add = (b: TagBucket, correct: boolean) => {
     b.total++;
@@ -66,16 +61,11 @@ export function bundleTagAccuracy(
   };
 
   for (const a of answers) {
-    let eff = effByQuiz.get(a.quizId);
-    if (eff === undefined) {
-      const authored = authoredByQuiz.get(a.quizId) ?? [];
-      eff = authored.length ? [...new Set([...authored, ...ancestorIds(edges, authored)])] : [];
-      effByQuiz.set(a.quizId, eff);
-    }
-    if (eff.length === 0) {
+    const tags = [...new Set(tagIdsByQuiz.get(a.quizId) ?? [])];
+    if (tags.length === 0) {
       add(untagged, a.isCorrect);
     } else {
-      for (const tid of eff) {
+      for (const tid of tags) {
         const b = byTagId.get(tid) ?? { correct: 0, total: 0 };
         add(b, a.isCorrect);
         byTagId.set(tid, b);
@@ -85,7 +75,7 @@ export function bundleTagAccuracy(
   return { byTagId, untagged };
 }
 
-// Bundle answers by their quiz — the per-quiz dashboard axis (ADR-0013). Unlike effective tags,
+// Bundle answers by their quiz — the per-quiz dashboard axis (ADR-0013). Unlike tags,
 // each answer counts toward exactly ONE quiz (its question's quiz), so the per-quiz totals sum to
 // the overall answer count. Keyed by quizId (the caller resolves titles). Reuses TagBucket as the
 // plain {correct,total} counter.

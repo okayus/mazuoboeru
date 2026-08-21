@@ -26,6 +26,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@mazuoboeru/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       arctic:
         specifier: ^3.7.0
         version: 3.7.0
@@ -87,6 +90,12 @@ importers:
       wrangler:
         specifier: ^3.100.0
         version: 3.114.17(@cloudflare/workers-types@4.20260608.1)
+
+  packages/core:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
 packages:
 

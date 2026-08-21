@@ -5,7 +5,7 @@ import {
   loadUserAnswerFacts,
   quizTitlesByIds,
 } from "../db/dashboard-queries";
-import { loadTagEdges, tagNameMap } from "../db/tag-queries";
+import { tagNameMap } from "../db/tag-queries";
 import { bundleQuizAccuracy, bundleTagAccuracy, computeStreak } from "../domain/dashboard";
 import type { Env } from "../types";
 
@@ -28,14 +28,13 @@ export const dashboardRouter = new Hono<Env>()
     );
     const quizIds = [...new Set(facts.map((f) => f.quizId))];
 
-    const [authoredByQuiz, edges, titleById] = await Promise.all([
+    const [tagIdsByQuiz, titleById] = await Promise.all([
       authoredTagIdsByQuiz(c.env, quizIds),
-      loadTagEdges(c.env),
       quizTitlesByIds(c.env, quizIds),
     ]);
 
     const answerFacts = facts.map((f) => ({ isCorrect: f.isCorrect, quizId: f.quizId }));
-    const { byTagId, untagged } = bundleTagAccuracy(answerFacts, authoredByQuiz, edges);
+    const { byTagId, untagged } = bundleTagAccuracy(answerFacts, tagIdsByQuiz);
     const nameById = await tagNameMap(c.env, [...byTagId.keys()]);
     const tags = [...byTagId.entries()]
       .map(([id, b]) => ({ name: nameById.get(id) ?? "?", correct: b.correct, total: b.total }))

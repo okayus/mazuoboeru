@@ -1,5 +1,7 @@
 # タグの上位下位タクソノミ（運用者 curate の DAG・実効タグは導出）
 
+> **Status: superseded by [[0016-flat-tags-related-tags-derived-from-quizzes]]（2026-08-21）。** 2 か月の運用で `tag_edge` は 1 本（`HTTP ⊂ Protocol`）のまま増えず、作者は広い語も狭い語も自分で付けていた。タグ間の関係は**保存しない**方針に転換し、関連は公開クイズの共起から読み時に導出する（[[CONTEXT.md]] の [[Related Tags]]）。`tag_edge`・実効タグ・下位展開・broader/narrower チップは引退 PR で撤去。本文は当時の判断の記録として残す。
+
 ## Context
 
 #44 で導入したフラットなタグ（[[Tag]]）に、Phase 2 で**タグ間の関係**を持たせたい。動機: 広いタグで検索すると関連タグが出て絞り込める／タグ別ダッシュボード（[[0006-dashboard-aggregation-semantics]]）で広いタグにロールアップ／タグ関連をグラフで可視化。例: クイズに "JavaScript" を付けると上位の "programming" も効く。かつ1タグは複数の上位（"programming" と "動的型付け言語"）を持てる必要がある。

@@ -46,7 +46,7 @@ export async function quizTitlesByIds(
   return out;
 }
 
-// Authored tag ids per quiz (for effective-tag bundling on the dashboard).
+// Authored tag ids per quiz (per-tag bundling on the dashboard — authored only, ADR-0016).
 export async function authoredTagIdsByQuiz(
   env: Bindings,
   quizIds: string[],

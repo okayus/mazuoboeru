@@ -22,6 +22,8 @@ type Ok<T> = Exclude<InferResponseType<T>, ApiErrorBody>;
 export type Me = NonNullable<Ok<typeof client.api.auth.me.$get>["user"]>;
 
 export type TimelineItem = Ok<typeof client.api.public.quizzes.$get>["quizzes"][number];
+// Related Tags of the current selection (CONTEXT.md): name + how many matching quizzes carry it.
+export type RelatedTag = Ok<typeof client.api.public.quizzes.$get>["related"][number];
 
 export type PublicQuiz = Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>["quiz"];
 export type PublicQuestion = PublicQuiz["questions"][number];
@@ -104,9 +106,13 @@ export const api = {
   logout: () =>
     request<Ok<typeof client.api.auth.logout.$post>>("/auth/logout", { method: "POST" }),
 
-  timeline: (tag?: string) =>
+  // `tags` narrows with AND (every tag must be on the quiz). Repeated `tags=` params, never
+  // comma-joined — a tag name may contain a comma.
+  timeline: (tags: readonly string[] = []) =>
     request<Ok<typeof client.api.public.quizzes.$get>>(
-      `/public/quizzes${tag ? `?tag=${encodeURIComponent(tag)}` : ""}`,
+      `/public/quizzes${
+        tags.length ? `?${tags.map((t) => `tags=${encodeURIComponent(t)}`).join("&")}` : ""
+      }`,
     ),
   publicQuiz: (id: string) =>
     request<Ok<(typeof client.api.public.quizzes)[":id"]["$get"]>>(`/public/quizzes/${id}`),
