@@ -1,8 +1,8 @@
-import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Bindings } from "../types";
 import { db } from "./client";
 import { type LoadedQuiz, loadQuizWithContent } from "./quiz-queries";
-import { question, quiz, user } from "./schema";
+import { question, quiz, quizTags, user } from "./schema";
 import { tagsForQuizzes } from "./tag-queries";
 
 export type TimelineItem = {
@@ -17,16 +17,30 @@ export type TimelineItem = {
 
 // Public timeline: published, non-deleted quizzes, newest first. The canonical
 // public filter is always status='published' AND deleted_at IS NULL (ADR-0002).
-// `restrictQuizIds`, when given, limits the timeline to that id set (the broad-tag
-// filter resolves a tag + its descendants to ids in the route — ADR-0007).
+// `withAllTagIds`, when given, keeps only quizzes authored-tagged with EVERY listed tag
+// (AND — tags are flat, ADR-0016). It is a grouped subquery so the statement binds one
+// param per selected tag: D1 caps bound params at 100 per statement, and an id list of
+// the matching quizzes would stop fitting as a tag gets popular.
 export async function listPublishedQuizzes(
   env: Bindings,
-  opts: { limit?: number; restrictQuizIds?: string[] } = {},
+  opts: { limit?: number; withAllTagIds?: string[] } = {},
 ): Promise<TimelineItem[]> {
   const d = db(env);
   const limit = opts.limit ?? 50;
-  const restrict = opts.restrictQuizIds;
-  if (restrict && restrict.length === 0) return [];
+  const tagIds = [...new Set(opts.withAllTagIds ?? [])];
+  const taggedWithAll = tagIds.length
+    ? [
+        inArray(
+          quiz.id,
+          d
+            .select({ quizId: quizTags.quizId })
+            .from(quizTags)
+            .where(inArray(quizTags.tagId, tagIds))
+            .groupBy(quizTags.quizId)
+            .having(sql`count(distinct ${quizTags.tagId}) = ${tagIds.length}`),
+        ),
+      ]
+    : [];
 
   const rows = await d
     .select({
@@ -38,13 +52,7 @@ export async function listPublishedQuizzes(
     })
     .from(quiz)
     .innerJoin(user, eq(quiz.authorId, user.id))
-    .where(
-      and(
-        eq(quiz.status, "published"),
-        isNull(quiz.deletedAt),
-        ...(restrict ? [inArray(quiz.id, restrict)] : []),
-      ),
-    )
+    .where(and(eq(quiz.status, "published"), isNull(quiz.deletedAt), ...taggedWithAll))
     .orderBy(desc(quiz.publishedAt))
     .limit(limit);
 

@@ -21,6 +21,7 @@
     "e2e:server": "pnpm build && pnpm run e2e:db && node e2e/prepare-config.ts && wrangler dev --config dist/mazuoboeru/wrangler.json --persist-to .wrangler/state-e2e --ip 127.0.0.1 --port 5399"
   },
   "dependencies": {
+    "@mazuoboeru/core": "workspace:*",
     "arctic": "^3.7.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0",

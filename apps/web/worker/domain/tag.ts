@@ -1,15 +1,16 @@
 // Pure tag normalization — no I/O. A tag's identity is its `key`
 // (NFKC + trimmed + internal whitespace collapsed + ASCII-lowercased); `name`
 // preserves display casing. So "Docker"/"DOCKER"/"docker" share one key but the
-// first-seen display form is kept. See docs/data-model.md / ADR-0006.
+// first-seen display form is kept. Tags are flat — they know nothing about each other;
+// relations are derived from quizzes at read time (ADR-0016). See docs/data-model.md.
 
 export type NormalizedTag = { name: string; key: string };
 
 export const MAX_TAG_LEN = 30;
-// Generous ceiling rather than a literal "unlimited": with the tag DAG (ADR-0007),
-// broader tags are derived automatically, so few authored tags are needed; this bounds
-// pathological tag-spam without constraining real use. Real spam controls (rate limit)
-// are deferred (additive). Effective tags (the upward closure) are unbounded.
+// Generous ceiling rather than a literal "unlimited": authors tag broad and narrow words
+// themselves (3–10 per quiz in practice — there is no taxonomy deriving broader tags,
+// ADR-0016); 30 bounds pathological tag-spam without constraining real use. Real spam
+// controls (rate limit) are deferred (additive).
 export const MAX_TAGS_PER_QUIZ = 30;
 
 // Normalize one raw tag. Returns null when empty or too long after normalization —

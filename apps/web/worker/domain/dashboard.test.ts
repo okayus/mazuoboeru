@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { type AnswerFact, bundleQuizAccuracy, bundleTagAccuracy, computeStreak } from "./dashboard";
-import type { Edge } from "./tag-graph";
 
 // ms at ~12:00 JST on JST-day index `d` (3:00 UTC), safely inside that day.
 const dayMs = (d: number) => d * 86_400_000 + 3 * 3_600_000;
@@ -42,9 +41,8 @@ describe("computeStreak", () => {
 });
 
 describe("bundleTagAccuracy", () => {
-  const edges: Edge[] = [{ narrowerId: "js", broaderId: "prog" }];
-  const authoredByQuiz = new Map<string, string[]>([
-    ["qJs", ["js"]],
+  const tagIdsByQuiz = new Map<string, string[]>([
+    ["qJs", ["js", "web"]],
     ["qNone", []],
   ]);
   const answers: AnswerFact[] = [
@@ -53,18 +51,18 @@ describe("bundleTagAccuracy", () => {
     { isCorrect: true, quizId: "qNone" },
   ];
 
-  it("rolls a narrow-tag answer up into its broader effective tags", () => {
-    const { byTagId, untagged } = bundleTagAccuracy(answers, authoredByQuiz, edges);
+  it("counts an answer toward every authored tag of its quiz and nothing else (tags are flat — ADR-0016)", () => {
+    const { byTagId, untagged } = bundleTagAccuracy(answers, tagIdsByQuiz);
     expect(byTagId.get("js")).toEqual({ correct: 1, total: 2 });
-    expect(byTagId.get("prog")).toEqual({ correct: 1, total: 2 });
+    expect(byTagId.get("web")).toEqual({ correct: 1, total: 2 });
+    expect(byTagId.size).toBe(2);
     expect(untagged).toEqual({ correct: 1, total: 1 });
   });
 
   it("puts answers on untagged quizzes into the untagged bucket only", () => {
     const { byTagId, untagged } = bundleTagAccuracy(
       [{ isCorrect: false, quizId: "qNone" }],
-      authoredByQuiz,
-      edges,
+      tagIdsByQuiz,
     );
     expect(byTagId.size).toBe(0);
     expect(untagged).toEqual({ correct: 0, total: 1 });

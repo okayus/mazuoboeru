@@ -107,11 +107,10 @@ user 1───* report          (通報)
 | is_correct | integer (bool) | **クライアントに挑戦前は渡さない** |
 | position | integer | |
 
-### tag / quiz_tags / tag_edge
-- tag: `id` / `name`（表示名）/ `name_key`（識別キー＝NFKC・trim・空白畳み・小文字。**一意**）/ `created_at`。"Docker"/"docker" は1タグに統合し表示は "Docker" を保つ（`worker/domain/tag.ts`）。タグは**クイズ単位メタデータ**（軽微編集＝[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)で published でも編集可）。**最大30/クイズ**・1〜30字。
-- quiz_tags: `(quiz_id, tag_id)` PK＝**authored タグのみ**（作者が付けた分）。`quiz_id` は quiz 集合体としてカスケード（ソフト削除運用なので発火は Phase 4 のハード削除時のみ）、`tag_id` は NO ACTION。
-- tag_edge: `(narrower_id, broader_id)` PK＝タグの**上位下位（subsumption）DAG**（[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)。多親可・両 id は tag へ CASCADE・索引 `tag_edge(broader_id)`）。**実効タグ**（authored＋上位閉包）は読み時に純粋関数 `worker/domain/tag-graph.ts` で導出＝保存しない。絞り込み「広いタグ」は下位閉包で一致。
-  - **curate（運用者のみ・MVP は DB/CLI）**: 公開 write API も admin UI も無い。投入は `wrangler d1 execute mazuoboeru-db --remote --command "INSERT INTO tag_edge (narrower_id, broader_id) VALUES ('<下位 tag.id>','<上位 tag.id>')"`（両タグは既存前提＝先に `tag` を確認/作成）。**投入前に巡回チェック**（`wouldCreateCycle`）を通し DAG を維持する。read（グラフ取得）は将来の可視化用に公開予定。
+### tag / quiz_tags（タグはフラット・関連は導出）
+- tag: `id` / `name`（表示名）/ `name_key`（識別キー＝NFKC・trim・空白畳み・小文字。**一意**）/ `created_at`。"Docker"/"docker" は1タグに統合し表示は "Docker" を保つ（`worker/domain/tag.ts`）。タグは**クイズ単位メタデータ**（軽微編集＝[ADR-0002](adr/0002-publish-flow-and-edit-rules.md)で published でも編集可）。**最大30/クイズ**・1〜30字。**タグはフラット＝他のタグへの参照を持たない**（[ADR-0016](adr/0016-flat-tags-related-tags-derived-from-quizzes.md)。ADR-0007 の `tag_edge`＝上位下位タクソノミは migration 0012 で DROP 済み）。
+- quiz_tags: `(quiz_id, tag_id)` PK＝**authored タグのみ**（作者が付けた分）。`quiz_id` は quiz 集合体としてカスケード（ソフト削除運用なので発火は Phase 4 のハード削除時のみ）、`tag_id` は NO ACTION。**draft でも書かれる**ので、タグ単位の公開集計（件数・関連）は必ず `quiz` の公開フィルタに join する。
+- **Related Tags（関連タグ・導出・非保存）**: 選択中のタグ（1 個以上）をすべて持つ**公開中の**クイズに一緒に付いている選択外のタグと、その件数（[CONTEXT.md](../CONTEXT.md)）。純粋関数は `packages/core`（`@mazuoboeru/core`: `groupTags`／`itemsWithAllTags`／`relatedTagCounts`）にあり、worker は公開クイズの `(quiz_id, tag_id)` 対応表だけを渡す（`publishedQuizTagRows`）。公開タイムライン `GET /api/public/quizzes?tags=a&tags=b` は AND 完全一致（正規化キー）。一覧は grouped subquery（パラメータは選択タグ数ぶん＝D1 の 100 上限に依存しない）、`related` は対応表から導出（選択なし＝全タグの件数＝人気一覧）。タグ探索グラフ（次スライス）は同じ対応表を `GET /api/public/tag-graph` で受け取り、クライアントで同じ純粋関数により導出する。
 
 ### review_list（復習リスト / "my hot list"・[[CONTEXT.md]] Review List）
 | カラム | 型 | 備考 |
