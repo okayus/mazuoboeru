@@ -54,12 +54,13 @@ kokemusu と同じ構成（`okayus-skills` のスキル群）を踏襲。差分�
 
 ## 日常運用
 
-- 起動: `docker compose up -d` ／ シェル: `docker compose exec dev zsh` ／ 停止: `docker compose stop`。
-- git 運用（[ADR-0003](adr/0003-secrets-strategy.md)）: **コンテナ内は `claude/*` ブランチへ commit まで**、push/PR は**ホスト側リレーが自動代行**（systemd user timer・60秒間隔）。
-  - 状態: `systemctl --user list-timers mazuoboeru-relay.timer` ／ ログ: `journalctl --user -u mazuoboeru-relay.service -f` ／ 手動 1 回実行: `systemctl --user start mazuoboeru-relay.service`
-  - リレー本体・GitHub App 秘密鍵・設定はリポ外 `~/.config/mazuoboeru-relay/`（コンテナ非マウント＝サンドボックスから読めず・改変できず）。
-  - リレーの拒否ルール: `claude/*` 以外の ref・force push（diverge 検知）・main。マージ済み残骸ブランチは差分ゼロ判定でスキップ。
-  - **merge 代行**（2026-06-12 追加、ADR-0003 改訂参照）: HEAD commit に `Relay-Merge: yes` トレーラーがある open PR を CI green 後に squash merge し、remote/local ブランチを削除。CI 未完了なら 405 → 次 tick 再試行（ruleset がサーバー側で強制）。ログには `merge pending` / `merged PR #N` が出る。トレーラー無しの PR は従来どおり人間が merge。
+- 起動: **`./up.sh`**（= `op run --env-file=.docker/sandbox.env -- docker compose up -d`。1Password のアンロックが 1 回入る）／ シェル: `docker compose exec dev zsh` ／ 停止: `docker compose stop`（env は保持）／ `docker compose down` のあとは必ず `./up.sh`（plain `docker compose up -d` だと token 無しで起動＝push できない。fail closed）。
+- git 運用（[ADR-0003](adr/0003-secrets-strategy.md) 2026-08-22 追記）: **コンテナ内で `claude/<topic>` に commit → `git push -u origin claude/<topic>` → `gh pr create --fill` まで agent が行う**。コンテナの env にだけ **mazuoboeru 1 リポ限定の fine-grained PAT**（Contents + Pull requests、Workflows なし、90 日）が入り、git は env を読む inline credential helper、`gh` は `GH_TOKEN` を直接読む（compose の `command` が毎起動で設定。ディスクには書かない）。
+  - token の唯一の保管場所は 1Password（item `github-pat-mazuoboeru-sandbox`）。`.docker/sandbox.env`（gitignore）は `op://` 参照だけを持つ。90 日ごとに GitHub で Regenerate → `op item edit` → `./up.sh`。
+  - 境界は main の ruleset（PR + `ci` + bypass なし）と token scope。`.claude/settings.json` の deny（force push / `main` / ブランチ削除 / `gh pr merge` / `gh auth` / `gh api`）は慣習の担保（コンテナの bypass モードでは deny だけが効く）。
+  - **merge は人間がホストで行う**。`Relay-Merge: yes` トレーラーは廃止。agent 発意の merge が要るなら `gh pr merge --auto --squash` のみを allow に切り替える（CI green の強制は ruleset）。
+  - 旧リレー（`mazuoboeru-relay.timer`・`~/.config/mazuoboeru-relay/`・GitHub App）は停止済みで戻し道として 1 か月保持: `systemctl --user enable --now mazuoboeru-relay.timer` で復帰（その場合は `.claude/settings.json` の deny を `git push` 一括に戻す）。
+  - 手順の正典は okayus-skills `sandboxed-agent-github-token-via-1password`（本リポが最初の適用）。
 - `.docker/*` や `docker-compose.yml` を変えたら `docker compose down && build && up -d`。`down -v` は認証も消える。
 
 ## CLI（`@mazuoboeru/cli`）の npm リリース — ホスト手動（[ADR-0015](adr/0015-cli-npm-distribution.md)）

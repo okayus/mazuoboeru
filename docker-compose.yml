@@ -51,6 +51,14 @@ services:
       ANTHROPIC_MODEL: "claude-fable-5"
       POWERLEVEL9K_DISABLE_GITSTATUS: "true"
       TZ: Asia/Tokyo
+      # Repo-scoped GitHub fine-grained PAT (okayus/mazuoboeru only; Contents + Pull
+      # requests; no Workflows; 90-day expiry). No value here on purpose: compose
+      # resolves it from the `docker compose` process env — i.e. from `op run` in
+      # ./up.sh — and REMOVES the key when unset, so a plain `docker compose up -d`
+      # yields a container that can commit but not push (fail closed). The token
+      # lives only in 1Password (.docker/sandbox.env holds the op:// reference) and
+      # in this container's env; nothing writes it to disk. ADR-0003 (2026-08-22).
+      GH_TOKEN:
     ports:
       # host:container — host 5373 avoids collision with other local dev servers
       # (5173 = generic Vite, 5273 = kokemusu). Inside the container Vite listens on
@@ -66,6 +74,10 @@ services:
     # - pnpm lives in the container layer and vanishes on recreation, so reinstall it too.
     # - pi (earendil-works/pi coding agent) is installed with --ignore-scripts per its
     #   supply-chain hardening policy. Auth persists in the pi-config named volume.
+    # - git: credential helper = inline sh that echoes $GH_TOKEN at push time (nothing
+    #   under ~/.git-credentials), plus a distinguishable sandbox identity. ~/.gitconfig
+    #   is container-layer, so both are re-applied every start. `$$` = literal `$`
+    #   (compose interpolates `$VAR` at parse time). ADR-0003 (2026-08-22).
     # - defaultMode=bypassPermissions is written into the CONTAINER-scope user settings
     #   (named volume), NOT the repo-shared .claude/settings.json — host sessions keep
     #   normal prompting. Safe here because the firewall is the boundary and deny rules
@@ -77,6 +89,11 @@ services:
               echo 'WARN: claude/pnpm update failed; using image-baked versions') &&
              (npm i -g --ignore-scripts @earendil-works/pi-coding-agent@latest ||
               echo 'WARN: pi install failed') &&
+             (git config --global credential.helper '!f() { echo username=x-access-token; echo \"password=$$GH_TOKEN\"; }; f' &&
+              git config --global user.name 'Claude (mazuoboeru sandbox)' &&
+              git config --global user.email 'claude-sandbox@users.noreply.github.com' ||
+              echo 'WARN: git credential/identity setup failed') &&
+             ([ -n \"$$GH_TOKEN\" ] || echo 'NOTE: GH_TOKEN absent - this container can commit but NOT push. Start it via ./up.sh') &&
              ([ -s /home/node/.claude/settings.json ] || echo '{}' > /home/node/.claude/settings.json) &&
              (jq '.permissions.defaultMode = \"bypassPermissions\"' /home/node/.claude/settings.json > /tmp/cs.json &&
               mv /tmp/cs.json /home/node/.claude/settings.json ||

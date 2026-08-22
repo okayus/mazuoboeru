@@ -45,3 +45,16 @@ mazuoboeru の自律開発ループ（コンテナ内 Claude が計画→実装�
 - **安全の根拠**: merge の前提条件（PR 必須 + required check `ci` green）は **ruleset がサーバー側で強制したまま**。リレーは sha 指定で merge し、依頼後に tip が動いていたら GitHub が拒否（TOCTOU 防止）。CI 未完了の依頼は 405 で弾かれ、次 tick で再試行（PR #4 で実証: 1 tick 目 405 → 2 tick 目 merge）。
 - **失ったもの（自覚的に）**: トレーラー付き PR は**人間レビューなしで main に入り、Workers Builds が本番へデプロイする**。現時点の CI は typecheck+build のみで、テストが required check に入るまでこのリスクは残る。緩和: (a) エージェント規約「迷う変更・影響の大きい変更にはトレーラーを付けない」（CLAUDE.md）、(b) Phase 1 でテストを ci.yml と ruleset の required checks に追加すること。
 - **戻し方**: relay.mjs の merge パス（`tryMerge`）を削除するだけ（ruleset・App・コンテナ設定は無変更。バックアップ: `relay.mjs.bak-20260612`）。
+
+## 改訂（2026-08-22）: push/PR の経路を「ホスト側リレー」から「sandbox 自身が 1 リポ限定 PAT で実行」へ（試行）
+
+リレー（systemd timer + relay.mjs + GitHub App 秘密鍵 + `Relay-Merge` トレーラー + squash 残渣ガード）の運用負荷が、ソロ開発で守っている価値に見合わなくなったため、**境界の内側に「1 リポ限定・期限付き」の credential を置く**方式へ切り替える（ユーザー指示による統治変更。okayus-skills `sandboxed-agent-github-token-via-1password`。本リポが最初の適用）。
+
+- **credential**: 自分のアカウントの GitHub **fine-grained PAT**。Repository access = `okayus/mazuoboeru` のみ、Permissions = Contents + Pull requests（Metadata は自動）、**Workflows なし**（agent は自分の CI ゲートを変えられない＝App と同じ意図的な欠落）、期限 90 日。別のボットアカウント案は不成立（GitHub docs: fine-grained PAT は outside / repository collaborator では使えない）。
+- **注入**: 唯一の保管場所は 1Password。`./up.sh`（= `op run --env-file=.docker/sandbox.env -- docker compose up -d`）がホストで解決し、compose の値なしキー `GH_TOKEN:` でコンテナの **env にだけ**渡す。ディスクには書かない（git は env を echo する inline credential helper、`gh` は `GH_TOKEN` を直接読む、`gh auth login` は deny）。**plain `docker compose up -d` では token が無い**（compose は未解決の値なしキーを除去する＝fail closed）。
+- **境界**: main の ruleset（PR 必須 + required check `ci` + `bypass_actors: []`＝token は所有者と同じ capability を持つので bypass を空にしておくことが要）と token scope。`.claude/settings.json` の allow/deny（`git push origin claude/*` と `gh pr create/checks` を allow、force push / `main` / ブランチ削除 / `gh pr merge` / `gh auth` / `gh api` を deny）は行儀の良い agent を軌道に乗せる慣習の担保で、コンテナ既定の bypassPermissions では deny だけが効く。
+- **merge**: 人間がホストで行う（既定）。agent 発意の merge が必要になれば `gh pr merge --auto --squash` のみを allow に切り替える（ruleset の CI green 強制はそのまま＝トレーラー方式と同じ意味論、リレー不要）。`Relay-Merge: yes` トレーラーは廃止。
+- **失うもの（自覚的に）**: 2026-06-12 改訂で「合図は境界内・実行と方針強制は境界外」としていた構図を崩す。compromised sandbox は、このリポの非保護ブランチへの push・PR 作成に加え、**CI green の PR を API 経由で merge できる**（`contents: write` は merge endpoint を含む。`gh pr merge` / `gh api` の deny は協力的な agent にしか効かない）。緩和は required checks の強化（テスト）・PR をレビューしてから merge・90 日期限・疑いがあれば即 revoke。これが許容できない状況に戻ったらリレーへ戻す。
+- **残る人手**: 90 日ごとの token 再発行（GitHub で Regenerate → `op item edit` → `./up.sh`）、PR レビューと merge。
+- **戻し方**: `./up.sh` を使わず `docker compose up -d`（token なし）に戻し、`.claude/settings.json` の deny を `git push` 一括に戻し、`systemctl --user enable --now mazuoboeru-relay.timer`。リレーの unit・`~/.config/mazuoboeru-relay/`（App 秘密鍵）・GitHub App は 1 か月保持する。
+- **状態**: E2E（token で push → `gh pr create` → `gh pr checks`、`HEAD:main` が ruleset で拒否、`gh pr merge` が deny、workflows 変更が remote で拒否、`down`/`up` で token が無い）を通してから relay timer を停止し、採録した事実を skill の UNVERIFIED に書き戻す。

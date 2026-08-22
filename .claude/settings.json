@@ -31,12 +31,18 @@
       "Bash(git commit:*)",
       "Bash(git checkout:*)",
       "Bash(git switch:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push origin claude/*)",
+      "Bash(git push -u origin claude/*)",
+      "Bash(gh pr create:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
       "Bash(gh issue view:*)",
       "Bash(gh issue list:*)",
-      "Bash(gh api:*)",
       "Bash(curl -s https://api.github.com/*)",
       "Bash(curl -s https://mazuoboeru.shiraoka.workers.dev/*)",
       "WebFetch(domain:mazuoboeru.shiraoka.workers.dev)",
@@ -45,7 +51,14 @@
       "WebFetch(domain:docs.mcp.cloudflare.com)"
     ],
     "deny": [
-      "Bash(git push:*)"
+      "Bash(git push * --force*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git push * main)",
+      "Bash(git push * --delete *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)"
     ]
   },
   "hooks": {
