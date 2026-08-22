@@ -7,14 +7,14 @@
 > - 後戻りしにくい決定の理由 → [docs/adr/](adr/)（正典）
 > - 用語の正典 → [CONTEXT.md](../CONTEXT.md) / 働き方の規約 → [CLAUDE.md](../CLAUDE.md)
 >
-> **最終更新: 2026-08-21**（更新したら日付と §「いま動いているもの」を直す）
+> **最終更新: 2026-08-22**（更新したら日付と §「いま動いているもの」を直す）
 
 ---
 
 ## 30秒で把握
 
 - **何**: 学んだことをクイズ化して反復で覚える **公開 SaaS**。マルチユーザーで、**クイズは必ず公開**され誰でも他人のクイズに挑戦できる。中心課題は UGC の安全表示（XSS サニタイズ）・モデレーション・サーバー側採点（正誤の単一の真実／即時フィードバック＝競争的カンニング対策ではない＝[ADR-0010](adr/0010-server-side-grading-rationale.md)）。
-- **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス・**docs-only＝`docs/*`/`*.md` は watch path exclude でデプロイ skip／CI `ci` は required で常時走る**＝2026-06-19）、push/PR/merge はホスト側リレー。**node は host/sandbox/CI とも node24**（ADR-0005。`apps/cli` の `.ts` はビルド無しネイティブ実行）。
+- **基盤**: Cloudflare Workers + D1 / React 19 + Vite / Hono / Drizzle。**TS は関数のみ（class 禁止）**。デプロイは Workers Builds（キーレス・**docs-only＝`docs/*`/`*.md` は watch path exclude でデプロイ skip／CI `ci` は required で常時走る**＝2026-06-19）、push/PR は **sandbox 自身が 1 リポ限定 fine-grained PAT（1Password 注入）で実行**・merge は人間（2026-08-22、旧ホスト側リレーは停止・[ADR-0003](adr/0003-secrets-strategy.md) 追記）。**node は host/sandbox/CI とも node24**（ADR-0005。`apps/cli` の `.ts` はビルド無しネイティブ実行）。
 - **いま**: **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）は実装され main にマージ・本番デプロイ済み**。バックエンドは PAT で一周動作する。
 - **Phase 2「発見と振り返り」実装・本番反映済み（2026-06-17・実機確認）**: タグ＋上位下位タクソノミ（広いタグ検索で下位も一致・ドリルチップ）／学習ダッシュボード（全体・実効タグ別正答率・ストリーク）／Favorite「my hot」／挑戦フロー再設計（1画面1問・設問別の本人正答率）。PR #44–#48・各 Workers Builds success（migration 0003–0005 自動適用を確認）。設計は [ADR-0006](adr/0006-dashboard-aggregation-semantics.md)/[ADR-0007](adr/0007-tag-subsumption-taxonomy.md)。残: 人気/ランキング・作者ページ・追加設問形式・Passkey・通報の Discord 通知。
 - **ログイン開通**: **GitHub ログインが本番・dev とも開通**（2026-06-14）。MVP は **GitHub のみ**（Google は可逆保留＝ADR-0001）。Phase 1 縦切りはブラウザで端から端まで動作する。
@@ -39,7 +39,7 @@
 - **本番**: https://mazuoboeru.shiraoka.workers.dev
 
 ---
-
+- **sandbox の push/PR 経路を host relay から「1 リポ限定 fine-grained PAT を 1Password で注入」へ移行・運用開始（2026-08-22・#88＝main `5f831a3`・[ADR-0003](adr/0003-secrets-strategy.md) 追記）**: `./up.sh`（= `op run --env-file=.docker/sandbox.env -- docker compose up -d`）がコンテナの env にだけ token を注入、git は inline credential helper・`gh` は `GH_TOKEN`。plain `docker compose up -d` は token 無し（fail closed・起動ログに NOTE）。`.claude/settings.json` は `git push` 一括 deny → 個別（allow `git push origin claude/*`・`gh pr create/checks/view`、deny force / `main`（refspec 形 `*main` 含む）/ `--delete` / `gh pr merge` / `gh auth` / `gh api`）。**E2E 結果**: token で push → `gh pr create`（#89）→ `gh pr checks` 緑／PR の無い commit の `HEAD:main` push は `GH013 Changes must be made through a pull request` で拒否／`.github/workflows/ci.yml` 変更の push は `without \`workflow\` scope` で remote 拒否／bypass モードでも `gh pr merge`・`gh auth`・`gh api` は deny（`claude -p` で実測）／`down`→plain `up` で `gh` 未ログイン・push は `Invalid username or token`。**想定外**: CI green の open PR（#88/#89）の head を `HEAD:main` に push したら GitHub がそれを「PR の merge」として受理し、#88 が fast-forward で main に入った（ruleset の bypass ではなく充足＝GitHub 仕様。否定テストは PR の無い commit で行う・refspec 形の deny を追加）。旧リレー `mazuoboeru-relay.timer` は disable（unit・App・鍵は 1 か月保持＝戻し道）、`Relay-Merge` トレーラーは廃止。手順の正典は okayus-skills `sandboxed-agent-github-token-via-1password`（本リポが初適用・E2E 結果を書き戻し済み）。
 ## いま本番で動いているもの（2026-06-16 実機確認）
 
 | 項目 | 状態 | 確認したこと |
