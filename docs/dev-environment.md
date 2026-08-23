@@ -54,7 +54,7 @@ kokemusu と同じ構成（`okayus-skills` のスキル群）を踏襲。差分�
 
 ## 日常運用
 
-- 起動: **`./up.sh`**（= 素の `docker compose up -d`。**資格情報ゼロ・冪等**、何度打っても安全）／ **token 付きシェル: `./shell.sh`**（= `op run --env-file=.docker/sandbox.env -- docker exec -it -e GH_TOKEN mazuoboeru-dev zsh`。1Password のアンロックがシェルごとに入る。`./shell.sh claude --continue` のように引数も渡せる）／ token 無しのシェル: `docker exec -it mazuoboeru-dev zsh` ／ 停止: `docker compose stop`。
+- 起動: **`./up.sh`**（= 素の `docker compose up -d`。**資格情報ゼロ・冪等**、何度打っても安全）／ **token 付きシェル: `./shell.sh`**（= `op read で op:// 参照を解決 → docker exec -it -e GH_TOKEN mazuoboeru-dev zsh`。1Password のアンロックがシェルごとに入る。`./shell.sh claude --continue` のように引数も渡せる）／ token 無しのシェル: `docker exec -it mazuoboeru-dev zsh` ／ 停止: `docker compose stop`。
 - ⚠️ **2026-08-23 改訂（ADR-0003）**: 以前は token を compose の `environment:` に入れて `./up.sh` で注入していたが、それだと token が**コンテナ設定の一部**になり、op を通さない `docker compose up -d` が「設定変更」と判定されて[コンテナごと作り直される](https://docs.docker.com/reference/cli/docker/compose/up/)＝ token 消失 + 中の Claude セッションも死ぬ（kokemusu で実際に踏んだ）。注入を exec 時に移してこの結合を切った。
 - **確認**: `./shell.sh` の中で `test -n "$GH_TOKEN" && echo "len=${#GH_TOKEN}"`（fine-grained PAT は 93 文字。値は印字しない）。コンテナ設定に載っていないことは `docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' mazuoboeru-dev | grep -c '^GH_TOKEN'` → `0`。
   ⚠️ ホストで `op run -- env` を見ると値は **`<concealed by 1Password>`（ちょうど 24 文字）にマスクされる** ので「24 文字 = 壊れている」ではない。長さは `op run --env-file=.docker/sandbox.env -- sh -c 'echo ${#GH_TOKEN}'` で。
