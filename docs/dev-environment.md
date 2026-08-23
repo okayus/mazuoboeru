@@ -54,9 +54,12 @@ kokemusu と同じ構成（`okayus-skills` のスキル群）を踏襲。差分�
 
 ## 日常運用
 
-- 起動: **`./up.sh`**（= `op run --env-file=.docker/sandbox.env -- docker compose up -d`。1Password のアンロックが 1 回入る）／ シェル: `docker compose exec dev zsh` ／ 停止: `docker compose stop`（env は保持）／ `docker compose down` のあとは必ず `./up.sh`（plain `docker compose up -d` だと token 無しで起動＝push できない。fail closed）。
-- git 運用（[ADR-0003](adr/0003-secrets-strategy.md) 2026-08-22 追記）: **コンテナ内で `claude/<topic>` に commit → `git push -u origin claude/<topic>` → `gh pr create --fill` まで agent が行う**。コンテナの env にだけ **mazuoboeru 1 リポ限定の fine-grained PAT**（Contents + Pull requests、Workflows なし、90 日）が入り、git は env を読む inline credential helper、`gh` は `GH_TOKEN` を直接読む（compose の `command` が毎起動で設定。ディスクには書かない）。
-  - token の唯一の保管場所は 1Password（item `github-pat-mazuoboeru-sandbox`）。`.docker/sandbox.env`（gitignore）は `op://` 参照だけを持つ。90 日ごとに GitHub で Regenerate → `op item edit` → `./up.sh`。
+- 起動: **`./up.sh`**（= 素の `docker compose up -d`。**資格情報ゼロ・冪等**、何度打っても安全）／ **token 付きシェル: `./shell.sh`**（= `op run --env-file=.docker/sandbox.env -- docker exec -it -e GH_TOKEN mazuoboeru-dev zsh`。1Password のアンロックがシェルごとに入る。`./shell.sh claude --continue` のように引数も渡せる）／ token 無しのシェル: `docker exec -it mazuoboeru-dev zsh` ／ 停止: `docker compose stop`。
+- ⚠️ **2026-08-23 改訂（ADR-0003）**: 以前は token を compose の `environment:` に入れて `./up.sh` で注入していたが、それだと token が**コンテナ設定の一部**になり、op を通さない `docker compose up -d` が「設定変更」と判定されて[コンテナごと作り直される](https://docs.docker.com/reference/cli/docker/compose/up/)＝ token 消失 + 中の Claude セッションも死ぬ（kokemusu で実際に踏んだ）。注入を exec 時に移してこの結合を切った。
+- **確認**: `./shell.sh` の中で `test -n "$GH_TOKEN" && echo "len=${#GH_TOKEN}"`（fine-grained PAT は 93 文字。値は印字しない）。コンテナ設定に載っていないことは `docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' mazuoboeru-dev | grep -c '^GH_TOKEN'` → `0`。
+  ⚠️ ホストで `op run -- env` を見ると値は **`<concealed by 1Password>`（ちょうど 24 文字）にマスクされる** ので「24 文字 = 壊れている」ではない。長さは `op run --env-file=.docker/sandbox.env -- sh -c 'echo ${#GH_TOKEN}'` で。
+- git 運用（[ADR-0003](adr/0003-secrets-strategy.md) 2026-08-22 追記）: **コンテナ内で `claude/<topic>` に commit → `git push -u origin claude/<topic>` → `gh pr create --fill` まで agent が行う**。`./shell.sh` が開くシェルの env にだけ **mazuoboeru 1 リポ限定の fine-grained PAT**（Contents + Pull requests、Workflows なし、90 日）が入り、git は env を読む inline credential helper、`gh` は `GH_TOKEN` を直接読む（compose の `command` が毎起動で設定。ディスクには書かない）。
+  - token の唯一の保管場所は 1Password（item `github-pat-mazuoboeru-sandbox`）。`.docker/sandbox.env`（gitignore）は `op://` 参照だけを持つ。90 日ごとに GitHub で Regenerate → `op item edit` → **新しい `./shell.sh` を開くだけ**（コンテナは無関係）。
   - 境界は main の ruleset（PR + `ci` + bypass なし）と token scope。`.claude/settings.json` の deny（force push / `main` / ブランチ削除 / `gh pr merge` / `gh auth` / `gh api`）は慣習の担保（コンテナの bypass モードでは deny だけが効く）。
   - **merge は人間がホストで行う**。`Relay-Merge: yes` トレーラーは廃止。agent 発意の merge が要るなら `gh pr merge --auto --squash` のみを allow に切り替える（CI green の強制は ruleset）。
   - 旧リレー（`mazuoboeru-relay.timer`・`~/.config/mazuoboeru-relay/`・GitHub App）は停止済みで戻し道として 1 か月保持: `systemctl --user enable --now mazuoboeru-relay.timer` で復帰（その場合は `.claude/settings.json` の deny を `git push` 一括に戻す）。
