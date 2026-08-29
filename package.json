@@ -6,6 +6,7 @@
     "build": "pnpm --filter @mazuoboeru/web build",
     "deploy": "pnpm --filter @mazuoboeru/web run deploy",
     "check": "pnpm --filter @mazuoboeru/web check",
+    "ci": "pnpm -r run check && pnpm -r run lint && pnpm -r run fmt:check && pnpm -r run build && pnpm -r run test",
     "db:migrate": "pnpm --filter @mazuoboeru/web db:migrate",
     "db:migrate:prod": "pnpm --filter @mazuoboeru/web db:migrate:prod",
     "check:e2e": "pnpm --filter @mazuoboeru/web check:e2e",
