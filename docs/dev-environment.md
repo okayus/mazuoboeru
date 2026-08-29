@@ -60,8 +60,8 @@ kokemusu と同じ構成（`okayus-skills` のスキル群）を踏襲。差分�
   ⚠️ ホストで `op run -- env` を見ると値は **`<concealed by 1Password>`（ちょうど 24 文字）にマスクされる** ので「24 文字 = 壊れている」ではない。長さは `op run --env-file=.docker/sandbox.env -- sh -c 'echo ${#GH_TOKEN}'` で。
 - git 運用（[ADR-0003](adr/0003-secrets-strategy.md) 2026-08-22 追記）: **コンテナ内で `claude/<topic>` に commit → `git push -u origin claude/<topic>` → `gh pr create --fill` まで agent が行う**。`./shell.sh` が開くシェルの env にだけ **mazuoboeru 1 リポ限定の fine-grained PAT**（Contents + Pull requests、Workflows なし、90 日）が入り、git は env を読む inline credential helper、`gh` は `GH_TOKEN` を直接読む（compose の `command` が毎起動で設定。ディスクには書かない）。
   - token の唯一の保管場所は 1Password（item `github-pat-mazuoboeru-sandbox`）。`.docker/sandbox.env`（gitignore）は `op://` 参照だけを持つ。90 日ごとに GitHub で Regenerate → `op item edit` → **新しい `./shell.sh` を開くだけ**（コンテナは無関係）。
-  - 境界は main の ruleset（PR + `ci` + bypass なし）と token scope。`.claude/settings.json` の deny（force push / `main` / ブランチ削除 / `gh pr merge` / `gh auth` / `gh api`）は慣習の担保（コンテナの bypass モードでは deny だけが効く）。
-  - **merge は人間がホストで行う**。`Relay-Merge: yes` トレーラーは廃止。agent 発意の merge が要るなら `gh pr merge --auto --squash` のみを allow に切り替える（CI green の強制は ruleset）。
+  - 境界は main の ruleset（PR + `ci` + bypass なし）と token scope。`.claude/settings.json` の deny（force push / `main` / ブランチ削除 / `gh auth` / `gh api`）は慣習の担保。`gh pr merge` は 2026-08-29 に deny から外し `--auto --squash` 形のみ allow（コンテナの bypass モードでは deny だけが効く）。
+  - **merge は `gh pr merge --auto --squash` を arm する**（2026-08-29 に切替、ADR-0003 追記。required check `ci` 通過時に GitHub が squash merge。例外 = migration / `.github/**` / `.claude/**` / `docs/adr/**` と迷う変更は人間 — CLAUDE.md）。`Relay-Merge: yes` トレーラーは廃止。
   - 旧リレー（`mazuoboeru-relay.timer`・`~/.config/mazuoboeru-relay/`・GitHub App）は停止済みで戻し道として 1 か月保持: `systemctl --user enable --now mazuoboeru-relay.timer` で復帰（その場合は `.claude/settings.json` の deny を `git push` 一括に戻す）。
   - 手順の正典は okayus-skills `sandboxed-agent-github-token-via-1password`（本リポが最初の適用）。
 - `.docker/*` や `docker-compose.yml` を変えたら `docker compose down && build && up -d`。`down -v` は認証も消える。

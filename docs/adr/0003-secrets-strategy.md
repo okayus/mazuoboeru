@@ -71,3 +71,11 @@ mazuoboeru の自律開発ループ（コンテナ内 Claude が計画→実装�
 - **rotation**: `op item edit` のあと **新しい `./shell.sh` を開くだけ**（コンテナは無関係）。旧方式では `./up.sh` がコンテナごと作り直していた（＝中のプロセスは全滅）。`docker exec` は作成時 env を継承し reconcile しないので、旧方式では re-exec しても新 token は入らない。
 - **`op run` で包まないこと（2026-08-23 追記）**: `shell.sh` の中身は `op read` で op:// 参照を先に解決してから `docker exec` する。`op run -- docker exec -it …` にすると、op が子プロセスの stdout / stderr に介入して秘密をマスクする仕様のため、対話シェルが実端末を失う（プロンプトが生の `${…}` テンプレートで出る、pty が 80x24 に落ちる）。kokemusu で観測。`-it` も決め打ちにせず `[ -t 0 ] && [ -t 1 ]` で判定する（非対話呼び出しは `docker exec -it` が拒否される）。okayus-skills `sandboxed-agent-github-token-via-1password` 0.2.1（v0.8.1）。
 - **戻し方**: `docker-compose.yml` の `environment:` に `GH_TOKEN: "${GH_TOKEN:-}"` を戻し、`up.sh` を `op run … -- docker compose up -d` に戻す（`shell.sh` は消してよい）。そのとき起動チェックは 3 値（`present (len=N)` / `is empty` / `is unset`）にすること。
+
+## 改訂（2026-08-29）: merge を auto-merge opt-in に、CI を「安定シェル」化
+
+2026-08-22 改訂で「必要になれば切り替える」としていた agent 発意の merge を有効にする。matatabetai（ADR-001 改訂 2026-08-24）で先に運用し、okayus-skills `sandboxed-agent-github-token-via-1password` 0.2.4 に還元した形をそのまま採る。
+
+- **merge**: `gh pr merge --auto --squash` の arm を解禁。`--auto` は PR timeline に残る監査可能なシグナルで、required check `ci` が green のときだけ GitHub が squash merge する（ruleset が無いと CI を待たず即時 merge になることを matatabetai で実測済み — このリポは protect-main があるので成立）。repo の Allow auto-merge を ON、`.claude/settings.json` の deny から `gh pr merge` を外し allow に `--auto --squash` 形を追加。**例外**: `apps/web/drizzle/`（migration）/ `.github/**` / `.claude/**` / `docs/adr/**` を触る PR と迷う変更は人間が merge
+- **脅威モデルは不変**: token（Contents write）は元から merge API を呼べる（上記「失うもの」）。deny が縛っていたのは協調エージェントだけで、今回変わるのは「協調エージェントの誤りがレビュー無しで本番に出うる」事故半径。required check（typecheck / lint / build / test）が保険
+- **CI を安定シェル化**（#93）: ci.yml の steps はリポ内ファイル（root `ci` script / `.node-version`）を呼ぶだけにし、CI の中身の変更をコンテナから完結させる。`pnpm/action-setup` の `version:` 直書きを外し packageManager を読む（二重指定は `packageManager` を上げた瞬間に落ちる）。action 更新は Dependabot。PAT に Workflows 権限は足さない（改変 workflow は `pull_request` でレビュー前に走り、required check の中身も書き換えられるため）
