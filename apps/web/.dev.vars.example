@@ -25,3 +25,9 @@ PAT_PEPPER=
 # create/publish quizzes. Blank = gate OFF (anyone signed in can create). Not the
 # public-launch per-user rate limit — see docs/project-status.md.
 ALLOWED_CREATORS=
+
+# Daily Digest push to kokemusu (ADR-0017). Blank/absent = the cron push is skipped
+# — the safe default for dev. NEVER point local dev at the real diary; to exercise
+# the push locally, use a throwaway local receiver (e.g. a 127.0.0.1 echo server).
+KOKEMUSU_URL=
+KOKEMUSU_PAT=

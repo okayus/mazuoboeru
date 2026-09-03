@@ -17,6 +17,11 @@ export type Bindings = {
   // Temporary single-user gate, NOT the public-launch per-user write rate limit
   // (docs/project-status.md). Consumed by requireCreator via domain/creator-allowlist.
   ALLOWED_CREATORS?: string;
+  // Daily Digest push to kokemusu (ADR-0017): the receiving diary's base URL and a
+  // kokemusu PAT for it. Worker Secrets in prod (referenced by name only — ADR-0003);
+  // .dev.vars locally. Absent (local dev, preview) => the push is skipped entirely.
+  KOKEMUSU_URL?: string;
+  KOKEMUSU_PAT?: string;
   // Per-IP rate limiter for the unauthenticated OAuth routes. Provisioned as an
   // `unsafe` ratelimit binding in wrangler.jsonc (wrangler 3.x has no top-level
   // `ratelimits` key). `RateLimit` is a global @cloudflare/workers-types type.
