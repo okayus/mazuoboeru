@@ -1,13 +1,7 @@
 // Private learning-dashboard metrics — pure, per-answer, activity-framed (ADR-0006).
 // All counts are over the user's own `answer` rows (re-attempts included). No I/O.
 
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Epoch ms → JST calendar-day index (ADR-0006: the streak day boundary is JST).
-function jstDay(ms: number): number {
-  return Math.floor((ms + JST_OFFSET_MS) / DAY_MS);
-}
+import { jstDay } from "./jst-day";
 
 // Consecutive JST days with >=1 answer. `current` is the run ending at the most recent
 // active day, alive only if that day is today or yesterday (grace until end of today);
