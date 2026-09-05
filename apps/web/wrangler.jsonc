@@ -17,6 +17,13 @@
     // RP id — once any passkey is registered, NEVER change it (invalidates them all).
     "RP_ID": "mazuoboeru.shiraoka.workers.dev",
     "ORIGIN": "https://mazuoboeru.shiraoka.workers.dev",
+    // Daily Digest push destination (ADR-0017): kokemusu's base URL. Not a secret —
+    // it is the author's own public hostname — and unlike a dashboard-set plain-text
+    // var, a committed one cannot be silently dropped by the next deploy (a deploy
+    // replaces the whole `vars` set with what this file says). The paired KOKEMUSU_PAT
+    // is a Worker Secret (name reference only — ADR-0003) and the push needs BOTH, so
+    // a shell without the PAT sends nothing; .dev.vars blanks this one for local dev.
+    "KOKEMUSU_URL": "https://kokemusu.shiraoka.workers.dev",
   },
   "d1_databases": [
     {

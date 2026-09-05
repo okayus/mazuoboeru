@@ -15,6 +15,7 @@ mazuoboeru 側の前提は grill で2点ズレが判明した: (1) 既存の Dis
 3. **形＝純粋ビルダー＋throw しない境界**。`buildDailyKokemusuPost(results, origin)`（純粋・table test）が投稿を組み、**活動ゼロの日は `null`＝送らない**（日記に空の石を積まない）。境界 `postWithBearer(url, token, payload)` は **HTTP status だけログ**（token・body はログに出さない）・**例外を投げない**——kokemusu 停止が cron 本体や将来の同居ジョブ（Discord 通知等）を道連れにしない。
 4. **リトライしない**。受け側に冪等キーが無い以上、リトライは二重投稿になり得る。失敗した日の石は**欠けたまま**（埋め戻さない）。翌日の cron が翌日の石を置く。
 5. **env は名前参照のみ（ADR-0003）**。`KOKEMUSU_URL`／`KOKEMUSU_PAT` が未設定なら**黙ってスキップ**（ログのみ）——dev・preview で誤送信しない fail-quiet。
+   **置き場所（2026-09-05・ホストで確定）**: `KOKEMUSU_URL` は秘密ではない（作者自身の公開ホスト名）ので `apps/web/wrangler.jsonc` の `vars` に**コミット**する。deploy は `vars` を設定ファイルの内容で丸ごと置き換えるため、dashboard で足した平文 var は次の Workers Builds で消えるが、コミットされた var は消えない。`KOKEMUSU_PAT` だけが Worker Secret（`wrangler secret put`・コードは名前参照のみ）。
 
 ## Considered Options
 
