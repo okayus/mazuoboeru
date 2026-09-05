@@ -18,8 +18,10 @@ export type Bindings = {
   // (docs/project-status.md). Consumed by requireCreator via domain/creator-allowlist.
   ALLOWED_CREATORS?: string;
   // Daily Digest push to kokemusu (ADR-0017): the receiving diary's base URL and a
-  // kokemusu PAT for it. Worker Secrets in prod (referenced by name only — ADR-0003);
-  // .dev.vars locally. Absent (local dev, preview) => the push is skipped entirely.
+  // kokemusu PAT for it. In prod the URL is a committed `vars` entry (not a secret —
+  // it is the author's own public hostname) and only the PAT is a Worker Secret
+  // (name reference only — ADR-0003); both come from .dev.vars locally. Either one
+  // absent (local dev, preview) => the push is skipped entirely.
   KOKEMUSU_URL?: string;
   KOKEMUSU_PAT?: string;
   // Per-IP rate limiter for the unauthenticated OAuth routes. Provisioned as an
