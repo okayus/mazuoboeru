@@ -16,6 +16,7 @@
     "db:migrate": "wrangler d1 migrations apply mazuoboeru-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply mazuoboeru-db --remote",
     "secrets:prod": "bash scripts/put-prod-secrets.sh",
+    "kokemusu:schema": "curl -fsSL https://raw.githubusercontent.com/okayus/kokemusu/main/docs/senders/posts.schema.json -o worker/domain/kokemusu-posts.schema.json && vp fmt",
     "e2e": "playwright test",
     "e2e:db": "node e2e/seed.ts",
     "e2e:server": "pnpm build && pnpm run e2e:db && node e2e/prepare-config.ts && wrangler dev --config dist/mazuoboeru/wrangler.json --persist-to .wrangler/state-e2e --ip 127.0.0.1 --port 5399"

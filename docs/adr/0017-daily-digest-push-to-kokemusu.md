@@ -31,3 +31,23 @@ mazuoboeru 側の前提は grill で2点ズレが判明した: (1) 既存の Dis
 - 「その日公開されたが同日中に hidden／削除されたクイズ」はダイジェストに載らない（送信時点の公開状態で読む）。仕様。
 - 将来の cron ジョブ（通報の Discord 通知等）は同じ `event.cron` ディスパッチ形に載せる。
 - スキーマ変更なし（読みだけ）。`answer.answered_at` の範囲スキャンは無索引だが1日1回・現規模では問題ない（増えたら index を検討）。
+
+## 補記（2026-09-09）: 契約は転記しない — 受け側の公開文書と vendoring した schema を読む
+
+Context に書いた受け側契約（`{body, title?, tags?}`・title ≤200 など）は、kokemusu 側セッションの grill で聞いた内容を
+**人手で転記**したものだった。kokemusu は 2026-09-03 の 3 日後（[kokemusu ADR-0006](https://raw.githubusercontent.com/okayus/kokemusu/main/docs/adr/0006-no-post-title.md)、2026-09-06）に `title` を廃止し、知らないキーを
+`400 validation_error` で拒むようになった。本 ADR の実装は 2026-09-05 に本番へ載っていたので、**活動のあった日の 00:15 push は
+毎晩 400** で石が積まれていなかった。境界は HTTP status しかログせず（設計どおり）、`kokemusu-post.test.ts` は `title` を期待し、
+kokemusu 側の test は `title` を 400 と検査し、両方 green のまま 3 日が過ぎた。コンテナ内の Claude は相手のリポを見ないので、
+どちらの側も相手を確認できなかった。
+
+**直したこと**: `title` を外し、`firstDay` に前日（`results.date`）を入れる（受け側は 2026-09-06 から `firstDay` を受け、
+苔片を「送った日」ではなく「在った日」に積める）。題が担っていた「まず覚える」と日付は、タグ `mazuoboeru` と `firstDay` が担う。
+
+**以後の規則**: 受け側の契約を本 ADR や CLAUDE.md に転記しない。正は kokemusu の
+[`docs/senders.md`](https://raw.githubusercontent.com/okayus/kokemusu/main/docs/senders.md)（public リポ。sandbox の egress
+firewall は GitHub の IP レンジを通すので、コンテナ内から `curl` で読める — 2026-09-09 実測）と、そこから vendoring した
+`apps/web/worker/domain/kokemusu-posts.schema.json`（受け側が zod スキーマから生成し CI で一致を検査している JSON Schema。
+`pnpm kokemusu:schema` で差し替える）。`kokemusu-post.test.ts` は builder の出力を `z.fromJSONSchema(schema)` で検証するので、
+受け側の wire が変われば schema を更新した時点でここの test が落ちる。更新の合図は受け側 `senders.md` の変更履歴、または
+本番ログの `[kokemusu] POST /api/posts -> 400`。リトライしない・冪等キー無しの判断は変えない。

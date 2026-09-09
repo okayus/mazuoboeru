@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { buildDailyKokemusuPost, type DailyResults } from "./kokemusu-post";
+import schema from "./kokemusu-posts.schema.json";
 
 const ORIGIN = "https://example.test";
 
@@ -11,7 +13,7 @@ const digest = (over: Partial<DailyResults> = {}): DailyResults => ({
 });
 
 describe("buildDailyKokemusuPost", () => {
-  it("builds title / body / tags from a full day", () => {
+  it("builds body / tags / firstDay from a full day", () => {
     const post = buildDailyKokemusuPost(
       digest({
         answers: { total: 12, correct: 9, answerers: 1 },
@@ -20,13 +22,14 @@ describe("buildDailyKokemusuPost", () => {
       ORIGIN,
     );
     expect(post).toEqual({
-      title: "まず覚える 2026-09-03",
       body: [
         "- 回答: 12問（正答 9・75%・回答者 1人）",
         "- 公開: 1件",
         "  - [Docker 基礎](https://example.test/#/quiz/q1)",
       ].join("\n"),
       tags: ["mazuoboeru"],
+      // The day the digest is about, so the 苔片 stacks there — not on the send day.
+      firstDay: "2026-09-03",
     });
   });
 
@@ -75,9 +78,55 @@ describe("buildDailyKokemusuPost", () => {
       title: "あ".repeat(30_000),
     }));
     const post = buildDailyKokemusuPost(digest({ publishedQuizzes: huge }), ORIGIN);
-    expect(post?.title.length).toBeLessThanOrEqual(200);
     expect(post?.body.length).toBeLessThanOrEqual(20_000);
     expect(post?.body.endsWith("…")).toBe(true);
     expect(post?.tags.length).toBeLessThanOrEqual(20);
+  });
+});
+
+// The receiver's contract, as the receiver publishes it (kokemusu docs/senders.md →
+// docs/senders/posts.schema.json, generated from its zod schema and vendored here by
+// `pnpm kokemusu:schema`). Reading it back with z.fromJSONSchema turns "what kokemusu
+// accepts" into a test the builder must pass — the check that was missing when the
+// receiver retired `title` (kokemusu ADR-0006) and every 00:15 push turned into a 400
+// while both projects' suites stayed green (ADR-0017 補記).
+describe("the receiver's contract (vendored kokemusu-posts.schema.json)", () => {
+  const contract = z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
+  const accepts = (payload: unknown) => contract.safeParse(payload).success;
+
+  const shapes = [
+    digest({
+      answers: { total: 12, correct: 9, answerers: 1 },
+      publishedQuizzes: [{ id: "q1", title: "Docker 基礎" }],
+    }),
+    digest({ answers: { total: 3, correct: 2, answerers: 2 } }),
+    digest({
+      publishedQuizzes: Array.from({ length: 25 }, (_, i) => ({ id: `q${i}`, title: `Quiz ${i}` })),
+    }),
+    digest({
+      publishedQuizzes: Array.from({ length: 30 }, (_, i) => ({
+        id: `q${i}`,
+        title: "あ".repeat(30_000),
+      })),
+    }),
+  ];
+
+  it("accepts every shape the builder produces", () => {
+    for (const results of shapes) {
+      const post = buildDailyKokemusuPost(results, ORIGIN);
+      expect(post).not.toBeNull();
+      expect(contract.safeParse(post).error?.issues ?? []).toEqual([]);
+    }
+  });
+
+  it("refuses the 見出し the receiver retired — the drift this suite exists to catch", () => {
+    const post = buildDailyKokemusuPost(shapes[0] as DailyResults, ORIGIN);
+    expect(accepts({ ...post, title: "まず覚える 2026-09-03" })).toBe(false);
+  });
+
+  it("is the published file, not a hand-written one", () => {
+    expect(schema.$id).toBe(
+      "https://raw.githubusercontent.com/okayus/kokemusu/main/docs/senders/posts.schema.json",
+    );
   });
 });
