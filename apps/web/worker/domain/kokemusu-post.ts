@@ -1,6 +1,12 @@
 // Daily Digest → kokemusu post, as a pure builder (CONTEXT.md Daily Digest, ADR-0017).
 // Service-wide aggregates + published-quiz titles only — never per-user data: who
 // answered what stays private (docs/security.md), so counts are the finest grain here.
+//
+// The receiver's contract is NOT transcribed here (ADR-0017 補記, 2026-09-09): it is
+// kokemusu's docs/senders.md, and kokemusu-posts.schema.json next to this file is
+// the vendored copy the tests check the builder's output against. Refresh it with
+// `pnpm kokemusu:schema` (a curl of kokemusu's public repo — reachable from the
+// sandbox); a change there shows up as a failing test here, not as a 400 at 00:15.
 
 export type DailyResults = {
   // The reported JST calendar day, "YYYY-MM-DD" (previousJstDayWindow — the day the
@@ -11,10 +17,14 @@ export type DailyResults = {
   publishedQuizzes: { id: string; title: string }[];
 };
 
-export type KokemusuPost = { title: string; body: string; tags: string[] };
+// What goes on the wire: the Markdown body, the provenance tags, and the JST day the
+// digest is ABOUT (`firstDay`), so the 苔片 lands on that day rather than on the
+// 00:15 send day. No `title`: the receiver retired the 見出し (kokemusu ADR-0006) and
+// refuses unknown keys — the tag and the day carry what the title used to say.
+export type KokemusuPost = { body: string; tags: string[]; firstDay: string };
 
-// The receiver's write contract: body ≤20,000 chars, title ≤200, ≤20 tags. The
-// builder stays far below the caps by construction and clamps body defensively.
+// The receiver's body cap (schema.json maxLength). The builder stays far below it
+// by construction and clamps defensively.
 const BODY_MAX = 20_000;
 const LIST_MAX = 20;
 
@@ -43,11 +53,7 @@ export function buildDailyKokemusuPost(results: DailyResults, origin: string): K
     if (rest > 0) lines.push(`  - …他 ${rest} 件`);
   }
 
-  return {
-    title: `まず覚える ${results.date}`,
-    body: clampBody(lines.join("\n")),
-    tags: TAGS,
-  };
+  return { body: clampBody(lines.join("\n")), tags: TAGS, firstDay: results.date };
 }
 
 // Quiz titles are UGC: collapse whitespace (a newline would break the bullet) and

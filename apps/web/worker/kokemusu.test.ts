@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { postWithBearer } from "./kokemusu";
 
-const PAYLOAD = { title: "まず覚える 2026-09-03", body: "- 回答: 1問", tags: ["mazuoboeru"] };
+const PAYLOAD = { body: "- 回答: 1問", tags: ["mazuoboeru"], firstDay: "2026-09-03" };
 const TOKEN = "kokemusu_pat_secret-token";
 
 type FetchCall = { input: string; init: RequestInit };
