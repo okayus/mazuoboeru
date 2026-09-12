@@ -51,3 +51,30 @@ firewall は GitHub の IP レンジを通すので、コンテナ内から `cur
 `pnpm kokemusu:schema` で差し替える）。`kokemusu-post.test.ts` は builder の出力を `z.fromJSONSchema(schema)` で検証するので、
 受け側の wire が変われば schema を更新した時点でここの test が落ちる。更新の合図は受け側 `senders.md` の変更履歴、または
 本番ログの `[kokemusu] POST /api/posts -> 400`。リトライしない・冪等キー無しの判断は変えない。
+
+## 補記（2026-09-11）: 石のタグ — 「まず覚える」＋その日の活動に関わった公開クイズのタグ、上限は受け側の schema から読む
+
+投稿の `tags` を `["mazuoboeru"]` から **`まず覚える`（出所）＋その日の活動に関わった公開クイズのタグ**（[[Daily Digest]]、CONTEXT.md）へ変え、
+`kind` は常に `both` にする。
+
+- **タグの源**: その日に [[Answer]] が 1 件以上あった [[Quiz]]（誰の回答でも・[[Drill]] の出所は問わない＝`answer` は出所を持たないので
+  「チャレンジされたクイズ」を字義どおりクイズ単位 Drill に限ることは計算不能）と、その日に公開された Quiz の**和集合**。どちらも
+  **送信時点で公開中**（published かつ未削除）のものだけ＝公開クイズ一覧と同じ規則で読む（モデレータが hidden にしたクイズのタグを
+  日記へ運ばない）。回答数の集計には公開フィルタが無いので非対称になるが、「数だけ」と「名前を外へ出す」で基準が違うのは意図。
+  公開だけの日にも公開したクイズのタグが付く（本文が公開を載せるのに、タグだけ片側に絞らない）。
+- **出所タグは `まず覚える` 1 つ**。`mazuoboeru` は送らない。受け側 `senders.md` の `["mazuoboeru"]` は例示で、名前や ASCII の要求ではない。
+  日記の持ち主が読む名前はアプリ名の日本語表記。2 つ置くと枠を 2 つ消費し、常に同時に現れる 2 石が並ぶ。既に `mazuoboeru` で積まれた石
+  （#98 以降の活動日ぶん・多くて数個）は受け側で手直しする。
+- **上限を転記しない**: builder は `kokemusu-posts.schema.json` の `tags.maxItems`（と `body.maxLength`）を読む。受け側が上限を変えたら
+  `pnpm kokemusu:schema` の再 vendoring だけで追随し、`maxItems` が schema から消えれば型エラーで止まる（黙って無制限にならない）。
+  超える日の切り方は **`まず覚える` を先頭に固定、残りは回答数の多いタグ順・同数は名前順（文字コード順）** で決定的にする
+  （公開だけのタグは回答 0 として末尾）。本番の実測（公開 74 クイズ・138 タグ、1 クイズ中央値 6 タグ）では 3〜5 クイズ解いた日で
+  14〜22 タグに達し、受け側の 20 では日常的に切れる。
+- **受け側の 20 は編集上の数**（kokemusu `worker/core/tag.ts` の `MAX_TAGS_PER_POST`。理由の記録なし。`createPostSchema`・`?tags=` AND・
+  SPA のチップ入力の 3 か所に写る）。物理上限は D1 の bound parameter **100**（kokemusu の既存タグ引き `inArray(norm, …)` ＋ `user_id` の 1）
+  なので、受け側で **99 へ上げる**（kokemusu 側の PR・別セッション。schema 再生成と `senders.md` 変更履歴は kokemusu ADR-0008 の手順）。
+  `maxItems` の撤廃はしない＝物理上限を送り側が知る手段が無くなる。本補記の実装はそれを待たない: 先に 20 で動き、再 vendoring で追随する（kokemusu は 2026-09-11 に 99 へ引き上げ＝kokemusu #57、
+  こちらは 2026-09-12 に再 vendoring＝同じ PR #100。builder 側の変更はゼロ）。
+- **`kind` は `both` 固定**（持ち主の判断）。回答（想起）も公開（作る）も混ざる日次集計に、日の内訳で向きを変えても情報にならない。
+- 変えないもの: サービス全体の集計のみ（owner を特定しない）・前日窓・throw しない境界・リトライなし・活動ゼロは送らない。
+  スキーマ変更・migration なし（読みだけ。answer→question→quiz→quiz_tags→tag の 1 日 1 回の join）。
