@@ -73,7 +73,8 @@ firewall は GitHub の IP レンジを通すので、コンテナ内から `cur
 - **受け側の 20 は編集上の数**（kokemusu `worker/core/tag.ts` の `MAX_TAGS_PER_POST`。理由の記録なし。`createPostSchema`・`?tags=` AND・
   SPA のチップ入力の 3 か所に写る）。物理上限は D1 の bound parameter **100**（kokemusu の既存タグ引き `inArray(norm, …)` ＋ `user_id` の 1）
   なので、受け側で **99 へ上げる**（kokemusu 側の PR・別セッション。schema 再生成と `senders.md` 変更履歴は kokemusu ADR-0008 の手順）。
-  `maxItems` の撤廃はしない＝物理上限を送り側が知る手段が無くなる。本補記の実装はそれを待たない: 先に 20 で動き、再 vendoring で追随する。
+  `maxItems` の撤廃はしない＝物理上限を送り側が知る手段が無くなる。本補記の実装はそれを待たない: 先に 20 で動き、再 vendoring で追随する（kokemusu は 2026-09-11 に 99 へ引き上げ＝kokemusu #57、
+  こちらは 2026-09-12 に再 vendoring＝同じ PR #100。builder 側の変更はゼロ）。
 - **`kind` は `both` 固定**（持ち主の判断）。回答（想起）も公開（作る）も混ざる日次集計に、日の内訳で向きを変えても情報にならない。
 - 変えないもの: サービス全体の集計のみ（owner を特定しない）・前日窓・throw しない境界・リトライなし・活動ゼロは送らない。
   スキーマ変更・migration なし（読みだけ。answer→question→quiz→quiz_tags→tag の 1 日 1 回の join）。
