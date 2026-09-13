@@ -1,6 +1,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { api, type DrillItem, isApiError } from "../api";
+import { type ResultFeedback } from "../lib/challenge-result";
 import { DrillQuestionCard, type Stat } from "./DrillQuestionCard";
 
 // Drill = solve the Review List questions one at a time, server-graded with immediate
@@ -51,7 +52,7 @@ function DrillRunner({
   const current = pool[idx];
   const advance = () => setIdx((i) => i + 1);
 
-  const onAnswered = (questionId: string, isCorrect: boolean) =>
+  const onAnswered = (questionId: string, { isCorrect }: ResultFeedback) =>
     setStats((prev) => {
       const s = prev[questionId] ?? { correct: 0, total: 0 };
       return {

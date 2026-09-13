@@ -56,7 +56,11 @@ test("author publishes a quiz; another account challenges it and is server-grade
   await question.getByRole("button", { name: "回答する" }).click();
 
   await expect(question.getByText("正解", { exact: true })).toBeVisible();
-  // No per-run score any more (the Attempt entity is retired — ADR-0013). The quiz-scoped
-  // Drill shows an advance affordance instead; on the last (here only) question it reads "完了".
-  await expect(question.getByRole("button", { name: "完了" })).toBeVisible();
+  // No per-run row on the server (the Attempt entity is retired — ADR-0013). On the last (here
+  // only) question the advance affordance reads "結果を見る" and opens the Challenge Result: an
+  // on-screen summary of this pass built from the cards' feedback, never stored (ADR-0013 addendum).
+  await question.getByRole("button", { name: "結果を見る" }).click();
+  await expect(page.getByText("1 / 1 問正解（100%）")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "正解した設問（1）" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "もう一度挑戦" })).toBeVisible();
 });

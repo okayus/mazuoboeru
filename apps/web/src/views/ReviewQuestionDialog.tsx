@@ -1,6 +1,7 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { api, isApiError } from "../api";
+import { type ResultFeedback } from "../lib/challenge-result";
 import { DrillQuestionCard, type Stat } from "./DrillQuestionCard";
 
 // Solve a single Review List question in a dialog, without leaving "my hot list" — a Drill scoped
@@ -41,7 +42,7 @@ export function ReviewQuestionDialog({
     if (data) setStat(data.stat ?? undefined);
   }, [data]);
 
-  const onAnswered = (_questionId: string, isCorrect: boolean) =>
+  const onAnswered = (_questionId: string, { isCorrect }: ResultFeedback) =>
     setStat((prev) => {
       const s = prev ?? { correct: 0, total: 0 };
       return { correct: s.correct + (isCorrect ? 1 : 0), total: s.total + 1 };
