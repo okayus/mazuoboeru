@@ -490,3 +490,22 @@ button.tag {
 .drill-dialog-inner .card {
   margin-bottom: 0;
 }
+
+/* Challenge Result (挑戦結果): the wrong-first summary shown after a quiz-scoped Drill. */
+.result-headline {
+  font-size: 1.3rem;
+  margin: 6px 0 10px;
+}
+
+.challenge-result h3 {
+  margin: 18px 0 8px;
+}
+
+.result-answers {
+  margin: 8px 0;
+}
+
+details.explanation summary {
+  cursor: pointer;
+  font-weight: 600;
+}

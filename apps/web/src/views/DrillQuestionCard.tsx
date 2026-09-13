@@ -1,26 +1,15 @@
 import { type ReactNode, useState } from "react";
 import { api, type AnswerSubmission } from "../api";
+import { type ResultFeedback } from "../lib/challenge-result";
 import { buildQuestionMarkdown } from "../lib/question-markdown";
 import { shuffle } from "../lib/shuffle";
 import { QuizMarkdown } from "../QuizMarkdown";
 
 export type Stat = { correct: number; total: number };
 
-// Post-grade feedback, discriminated by question type (ADR-0012).
-type Feedback =
-  | {
-      type: "mcq_single" | "mcq_multi";
-      isCorrect: boolean;
-      explanation: string | null;
-      correctChoiceIds: string[];
-    }
-  | {
-      type: "short";
-      isCorrect: boolean;
-      explanation: string | null;
-      submittedText: string;
-      acceptedAnswers: string[];
-    };
+// Post-grade feedback, discriminated by question type (ADR-0012). The same shape is handed to
+// the caller via onAnswered so a quiz-scoped Drill can build its Challenge Result from it.
+type Feedback = ResultFeedback;
 
 // The minimal question shape the card renders. Both the Review List Drill (GET /drill) and the
 // quiz-scoped Drill (GET /drill/quiz/:id) return this — the card is unaware which pool it came
@@ -43,7 +32,9 @@ export function DrillQuestionCard(props: {
   stat: Stat | undefined;
   source?: ReactNode;
   headerExtra?: ReactNode;
-  onAnswered: (questionId: string, isCorrect: boolean) => void;
+  // Fired once per graded answer with the full feedback (correctness + reveal + what was
+  // submitted). Callers that only care about correctness read `feedback.isCorrect`.
+  onAnswered: (questionId: string, feedback: ResultFeedback) => void;
   actions: ReactNode;
 }) {
   const { item, stat, source, headerExtra } = props;
@@ -80,7 +71,7 @@ export function DrillQuestionCard(props: {
     setError(null);
     try {
       const r = await api.submitDrillAnswer(item.questionId, submission);
-      setFeedback(
+      const graded: Feedback =
         r.reveal.type === "short"
           ? {
               type: "short",
@@ -93,10 +84,11 @@ export function DrillQuestionCard(props: {
               type: r.reveal.type,
               isCorrect: r.isCorrect,
               explanation: r.explanation,
+              chosenChoiceIds: "choiceIds" in submission ? submission.choiceIds : [],
               correctChoiceIds: r.reveal.correctChoiceIds,
-            },
-      );
-      props.onAnswered(item.questionId, r.isCorrect);
+            };
+      setFeedback(graded);
+      props.onAnswered(item.questionId, graded);
     } catch {
       setError("送信に失敗しました");
     } finally {
