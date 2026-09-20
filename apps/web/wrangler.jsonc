@@ -2,6 +2,15 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "mazuoboeru",
   "compatibility_date": "2025-03-28",
+  // Worker -> Worker on the same zone. mazuoboeru and kokemusu both live on
+  // shiraoka.workers.dev, and without this flag a global fetch() to a sibling Worker
+  // never reaches it: Cloudflare answers on its behalf with a 404 (error 1042,
+  // "Worker tried to fetch from another Worker on the same zone"). That is what the
+  // Daily Digest push got every night from 2026-09-06 until it was measured on
+  // 2026-09-21 (ADR-0017 補記 2026-09-21). With the flag the request loops back through
+  // Cloudflare's front door like any request from the Internet, which is also what
+  // the receiver's PAT contract assumes (any sender, anywhere).
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "main": "./worker/index.ts",
   "assets": {
     "binding": "ASSETS",
