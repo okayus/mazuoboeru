@@ -62,6 +62,31 @@ describe("postWithBearer", () => {
     await expect(postWithBearer("https://diary.example", TOKEN, PAYLOAD, impl)).resolves.toBe(500);
   });
 
+  it("logs what the far end said on a non-2xx, so a platform error names itself", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    // Cloudflare's same-zone Worker-to-Worker refusal: a 404 whose body is the only clue.
+    const { impl } = fetchDouble(async () => new Response("error code: 1042\n", { status: 404 }));
+
+    await expect(postWithBearer("https://diary.example", TOKEN, PAYLOAD, impl)).resolves.toBe(404);
+
+    const logged = log.mock.calls.flat().map(String).join(" ");
+    expect(logged).toContain("404 error code: 1042");
+    expect(logged).not.toContain(TOKEN);
+    expect(logged).not.toContain(PAYLOAD.body);
+  });
+
+  it("keeps the logged response short and on one line", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const long = `${"x".repeat(500)}\nsecond line`;
+    const { impl } = fetchDouble(async () => new Response(long, { status: 400 }));
+
+    await postWithBearer("https://diary.example", TOKEN, PAYLOAD, impl);
+
+    const line = String(log.mock.calls.at(-1)?.[0]);
+    expect(line).not.toContain("\n");
+    expect(line.length).toBeLessThan(220);
+  });
+
   it("resolves null (never throws) when the network itself fails", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const impl = (async () => {
