@@ -20,10 +20,14 @@ export type Bindings = {
   // Daily Digest push to kokemusu (ADR-0017): the receiving diary's base URL and a
   // kokemusu PAT for it. In prod the URL is a committed `vars` entry (not a secret —
   // it is the author's own public hostname) and only the PAT is a Worker Secret
-  // (name reference only — ADR-0003); both come from .dev.vars locally. Either one
-  // absent (local dev, preview) => the push is skipped entirely.
+  // (name reference only — ADR-0003); both come from .dev.vars locally. The request
+  // itself travels over the KOKEMUSU Service Binding (wrangler.jsonc `services`,
+  // ADR-0017 補記 2026-09-30): kokemusu is a sibling Worker on the same workers.dev
+  // zone, which global fetch() cannot reach (Cloudflare error 1042). Any of the three
+  // absent (local dev, e2e, preview) => the push is skipped entirely.
   KOKEMUSU_URL?: string;
   KOKEMUSU_PAT?: string;
+  KOKEMUSU?: Fetcher;
   // Per-IP rate limiter for the unauthenticated OAuth routes. Provisioned as an
   // `unsafe` ratelimit binding in wrangler.jsonc (wrangler 3.x has no top-level
   // `ratelimits` key). `RateLimit` is a global @cloudflare/workers-types type.
