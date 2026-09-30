@@ -99,3 +99,25 @@ firewall は GitHub の IP レンジを通すので、コンテナ内から `cur
 
 **残り。** このフラグを入れた版が配備された後の最初の活動日の翌 00:15 JST に、(a) 送り側のログが `-> 201`、(b) kokemusu の `api_token.last_used_at` が進む、(c) その日の石が立つ、の 3 点を確かめる。ホストの週次 dump（`~/backups/d1/`）か `wrangler tail` で測れる。失敗を人が見る場所へ知らせる仕組み（Discord など）はまだ無く、別の決定として残る。
 
+## 補記（2026-09-30）: フラグでは届かなかった — 経路を Service Binding にする
+
+**実測した事実。** 2026-09-21 の補記で入れた `global_fetch_strictly_public` を載せた版（`9cd7fe5c`、09-21 11:44 JST 配備）でも、日次ダイジェストは一度も届いていない。
+
+- 配備後の活動日（09-21 回答 6・09-22 回答 24・09-23 公開 1・09-25 回答 46・09-27 回答 2）の翌 00:15 JST に、kokemusu 側に Cron 由来の石が無い（本番 D1 を 09-27 と 09-28 に読んだ）。
+- kokemusu の PAT「mazuoboeru」の `last_used_at` は依然として発行日（2026-09-03）のまま。受け側は有効な PAT の要求ならルート処理の前に必ずこれを進めるので、**有効な PAT を持つ要求は一度も受け側に到達していない**。契約違反（400）でも進むので、契約の問題ではない。
+- 送り側の本番設定は正しい（settings API でフラグ・`KOKEMUSU_URL`・`KOKEMUSU_PAT`・cron 2 本を確認。毎時 tick は 09-27 10:15 JST に同じ版で発火するのを `wrangler tail` で実測）。
+- 使い捨ての Worker を `wrangler dev --remote` で上げて kokemusu へ fetch すると、**フラグの有無に関わらず** `404` / `error code: 1042` が返る（`nodejs_compat` の対照実験で、フラグ自体はプレビューに適用されている）。配備済み Worker では同じフラグで同アカウントの workers.dev に通ったという外部の実測もあり、プレビューが 1042 の代表になるかは分からない。送り側の 00:15 のログ行（`[kokemusu] POST /api/posts -> …`）は Workers Logs にしか無く、`wrangler login` の OAuth トークンでは telemetry API が 403 で読めないため、404（未到達）と 401（PAT 不一致）のどちらかは未確定のまま。
+
+**決定。** 経路を **Service Binding**（`wrangler.jsonc` の `services: [{ binding: "KOKEMUSU", service: "kokemusu" }]`、`cron.ts` が `env.KOKEMUSU.fetch` を `postWithBearer` に注入）に変える。フラグは外す。
+
+- 09-21 に「採らない」とした理由は、送り側を受け側の配備に結びつけることと、受け側を「誰からでも PAT で受ける」一般の口でなくすことだった。後者は起きない: 受け側の契約（`POST /api/posts`・Bearer PAT・`senders.md`）は一文字も変わらず、受け側は引き続き公開インターネットからも受ける。前者は「同じアカウントにいる」という既にある事実を wrangler.jsonc に書くだけで、kokemusu が別アカウントや custom domain へ移る日が来たら、その時に URL + PAT の公開経路へ戻せる（別ゾーンへの fetch は 1042 の対象外）。
+- 1042 の可能性を経路ごと消す方が、フラグの効き方を本番で一日ずつ確かめるより速い。一日一回しか観測できない経路で候補を一つずつ潰すのは、二週間の空白の再演になる。
+- 受け側への影響は、`CF-Connecting-IP` が付かず rate limit のキーが `unknown` になることだけ（binding 経由の送り側同士で 120/分を共有。日次 1 件には無関係）。CSRF は Bearer 免除のまま。受け側の変更は不要。
+- 境界 `postWithBearer` は fetch を注入できる形だったので、変更は `cron.ts` の配線と型だけ。URL は kokemusu 内の宛先を指す役目で残す。binding が無い環境（local dev・e2e・preview）は URL/PAT 未設定と同じく黙ってスキップする（`kokemusuWire`、test で固定）。
+
+**残り。**
+
+- 配備後の最初の活動日の翌 00:15 JST に、(a) 送り側のログが `-> 201`、(b) `last_used_at` の前進、(c) 石の到着、を確かめる。毎朝の判定は app-check の pipelines（okayus-skills #47。09-22 以降ほぼ毎朝、wrangler の OAuth refresh 直後の 7403 で判定不能だったので同日に直した）。
+- それでも届かなければ残る候補は PAT の不一致（401）だけ。kokemusu 側で PAT を再発行し、ホストで `curl … /api/auth/me` が 200 を返した値を `wrangler secret put KOKEMUSU_PAT` する（kokemusu 側の Worker にも `KOKEMUSU_PAT` という secret が誤って存在する＝put 先の取り違えの痕跡）。
+- kokemusu の `senders.md` に「同じアカウントの Worker からは Service Binding で」を書く（kokemusu 側の PR）。matatabetai の ADR-013 も同じ形にする。okayus-skills `cloudflare-workers-pat-bearer-auth` 0.3.0 の「フラグで直る」も改める。
+- 09-05 以降の活動日の石は再送しない（§4）。
