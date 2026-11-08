@@ -35,7 +35,7 @@
 ## git と merge
 
 - `claude/<topic>` に commit し、push して `gh pr create` する。PR の題は Conventional Commits で書く（commit が 2 つ以上だと `--fill` の題がブランチ名になる）。PR 本文の修正は `gh pr comment` で行う（`gh pr edit` はコンテナの古い gh で落ちる）。PR と CI の状態は `gh pr view` と `gh pr checks` で見る。
-- CI が green になったのを確かめたら、`gh pr merge --auto --squash <PR番号>` で arm してよい（`--auto` は required check `ci` が通るまで merge を待たせる）。`--auto` なしの merge と `--admin` は使わない。
+- CI が green になったのを確かめたら、`gh pr merge --auto --squash <PR番号>` で arm してよい（`--auto` は required check `ci` が通るまで merge を待たせる）。コンテナの gh（2.23）は、green で clean な PR への `--auto` を「Pull request is in clean status」で弾く。そのときだけ `gh pr merge --squash <PR番号>` を使う（hook が clean を確かめる）。それ以外の `--auto` なしの merge と `--admin` は使わない。
 - `apps/web/drizzle/`、`.github/**`、`.claude/**`、`docs/adr/**` を触る PR と、迷う変更・影響の大きい変更は、自分から arm しない。持ち主が差分を見たうえで merge を頼んだときだけ arm する（PR ができる前の「merge まで進めて」は含まない）。
 - migration の PR はさらに、merge の直前（24 時間以内）に持ち主がホストで `node ~/.config/d1-backup/d1-bookmark.mjs mazuoboeru <PR番号>` を実行し、D1 Time Travel の bookmark を PR にコメントするまで arm しない（コンテナには Cloudflare の資格情報がない）。bookmark のコメントは持ち主がこのコマンドで付けるもので、自分では投稿しない。
 - 既存行の書き換え・テーブルの再構築・DROP を含む migration なら、戻し方を書く（PR を作るときは本文に、作った後なら `gh pr comment` で）。
