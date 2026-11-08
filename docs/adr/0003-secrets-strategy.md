@@ -79,3 +79,12 @@ mazuoboeru の自律開発ループ（コンテナ内 Claude が計画→実装�
 - **merge**: `gh pr merge --auto --squash` の arm を解禁。`--auto` は PR timeline に残る監査可能なシグナルで、required check `ci` が green のときだけ GitHub が squash merge する（ruleset が無いと CI を待たず即時 merge になることを matatabetai で実測済み — このリポは protect-main があるので成立）。repo の Allow auto-merge を ON、`.claude/settings.json` の deny から `gh pr merge` を外し allow に `--auto --squash` 形を追加。**例外**: `apps/web/drizzle/`（migration）/ `.github/**` / `.claude/**` / `docs/adr/**` を触る PR と迷う変更は人間が merge
 - **脅威モデルは不変**: token（Contents write）は元から merge API を呼べる（上記「失うもの」）。deny が縛っていたのは協調エージェントだけで、今回変わるのは「協調エージェントの誤りがレビュー無しで本番に出うる」事故半径。required check（typecheck / lint / build / test）が保険
 - **CI を安定シェル化**（#93）: ci.yml の steps はリポ内ファイル（root `ci` script / `.node-version`）を呼ぶだけにし、CI の中身の変更をコンテナから完結させる。`pnpm/action-setup` の `version:` 直書きを外し packageManager を読む（二重指定は `packageManager` を上げた瞬間に落ちる）。action 更新は Dependabot。PAT に Workflows 権限は足さない（改変 workflow は `pull_request` でレビュー前に走り、required check の中身も書き換えられるため）
+
+## 補記（2026-11-08）: 例外の PR は、持ち主が差分を見て頼んだときに Claude が arm する
+
+2026-08-29 改訂の「例外（`apps/web/drizzle/` / `.github/**` / `.claude/**` / `docs/adr/**` を触る PR と迷う変更）は人間が merge」を、実際の運用に合わせて補う。本文は変えない。
+
+- **誰が決め、誰が打つか**: merge するかを決めるのは引き続き持ち主。持ち主が差分を見たうえで merge を頼んだとき（PR ができる前の「merge まで進めて」は含まない）は、Claude が `gh pr merge --auto --squash <PR番号>` で arm してよい。Claude が自分から arm することはない。#102（`docs/adr` を含む）は「arm せず人間の判断を待ち、ユーザ指示で arm」の形で入った（`docs/project-status.md`）。
+- **migration**: merge の直前（24 時間以内）に、持ち主がホストで `node ~/.config/d1-backup/d1-bookmark.mjs mazuoboeru <PR番号>` を実行し、D1 Time Travel の bookmark を PR にコメントしてから arm する（merge = Workers Builds の deploy command による本番 D1 への適用。コンテナには Cloudflare の資格情報が無い）。bookmark のコメントは持ち主が付けるもので、Claude は投稿しない。
+- **強制**: PreToolUse hook `.claude/hooks/guard-pr-merge.sh` が、`--auto --squash <PR番号>` 以外の形・`--admin`・他リポの PR・24 時間以内の bookmark コメントが無い migration PR を止める。hook はコメントの形と時刻を見るだけで、書き手は見分けられない（コンテナの PAT は持ち主のアカウント）。だから「Claude は bookmark を投稿しない」は CLAUDE.md の規約として残る。
+- **脅威モデルは不変**: hook が止めるのは協調するエージェントの誤りで、境界は引き続き ruleset と token scope。

@@ -18,8 +18,10 @@
 
 ## コマンドと罠
 
-- 開発はコンテナ内で行う。ルートから `pnpm dev --host`（コンテナ 5173 → ホスト 5373。`--host` が無いとホストから届かない）、`pnpm check`、`pnpm build`。CI と同じ検査（全パッケージの型・lint・format・build・test）は `pnpm run ci`（`pnpm ci` は pnpm 本体の別コマンドになる）。e2e はコンテナで `pnpm e2e`（CI は走らせない。`apps/web/e2e/README.md`）。
-- ホストで開いたセッションでは、編集と git はホストで行い、pnpm はコンテナに投げる（起動は `./up.sh`、実行は `docker exec mazuoboeru-dev pnpm run ci`）。ホストで pnpm・npx・node のパッケージスクリプトを走らせない。依存のコードが隔離の外で動き、作業ツリーを共有するコンテナの `node_modules` も壊れる。CLI の npm publish だけは持ち主がホストで手で行う（`docs/dev-environment.md`）。
+- pnpm はコンテナで走らせる。ルートで `pnpm dev --host`（コンテナ 5173 → ホスト 5373。`--host` が無いとホストから届かない）、`pnpm check`、`pnpm build`。CI と同じ検査（全パッケージの型・lint・format・build・test）は `pnpm run ci`（`pnpm ci` は pnpm 本体の別コマンドになる）。e2e は `pnpm e2e`（CI は走らせない。`apps/web/e2e/README.md`）。
+- lint と format はパッケージごとに `pnpm --filter @mazuoboeru/web lint`（`fmt`・`fmt:check` も同じ形。vp はパッケージのディレクトリで動かす）。
+- ホストで開いたセッションでは、編集と git はホストで行い、pnpm はコンテナに投げる（起動は `./up.sh`、実行は `docker exec mazuoboeru-dev pnpm run ci`）。`./up.sh` の直後は pnpm の入れ直しが終わっていないので、`docker exec mazuoboeru-dev pnpm --version` が通るまで待つ。`node_modules` がずれていれば、先にコンテナで `pnpm install --frozen-lockfile`。
+- ホストで pnpm・npx・node のパッケージスクリプトを走らせない。依存のコードが隔離の外で動き、作業ツリーを共有するコンテナの `node_modules` も壊れる。CLI の npm publish だけは持ち主がホストで手で行う（`docs/dev-environment.md`）。
 - ローカルの変数は `apps/web/.dev.vars`（`.dev.vars.example` をコピーする）。
 - API ルートは Hono のメソッドチェーンで定義する。別々の文で書くと型が route に乗らず、クライアントの `hc<AppType>` の推論が壊れる（ADR-0011）。
 - migration（`apps/web/drizzle/`）は main への merge で本番 D1 に適用される（Workers Builds の deploy command が `wrangler d1 migrations apply --remote` を deploy の前に走らせる。手で当てない）。書く前に okayus-skills の skill `cloudflare-d1-drizzle-migration` を読む。
@@ -35,7 +37,8 @@
 - `claude/<topic>` に commit し、push して `gh pr create` する。PR の題は Conventional Commits で書く（commit が 2 つ以上だと `--fill` の題がブランチ名になる）。PR 本文の修正は `gh pr comment` で行う（`gh pr edit` はコンテナの古い gh で落ちる）。PR と CI の状態は `gh pr view` と `gh pr checks` で見る。
 - CI が green になったのを確かめたら、`gh pr merge --auto --squash <PR番号>` で arm してよい（`--auto` は required check `ci` が通るまで merge を待たせる）。`--auto` なしの merge と `--admin` は使わない。
 - `apps/web/drizzle/`、`.github/**`、`.claude/**`、`docs/adr/**` を触る PR と、迷う変更・影響の大きい変更は、自分から arm しない。持ち主が差分を見たうえで merge を頼んだときだけ arm する（PR ができる前の「merge まで進めて」は含まない）。
-- migration の PR はさらに、merge の直前にホストで `node ~/.config/d1-backup/d1-bookmark.mjs mazuoboeru <PR番号>` を実行してもらい、D1 Time Travel の bookmark が PR にコメントされるまで arm しない（コンテナには Cloudflare の資格情報がない）。既存行の書き換え・テーブルの再構築・DROP を含む migration なら、PR 本文に戻し方を書く。
+- migration の PR はさらに、merge の直前（24 時間以内）に持ち主がホストで `node ~/.config/d1-backup/d1-bookmark.mjs mazuoboeru <PR番号>` を実行し、D1 Time Travel の bookmark を PR にコメントするまで arm しない（コンテナには Cloudflare の資格情報がない）。bookmark のコメントは持ち主がこのコマンドで付けるもので、自分では投稿しない。
+- 既存行の書き換え・テーブルの再構築・DROP を含む migration なら、戻し方を書く（PR を作るときは本文に、作った後なら `gh pr comment` で）。
 - merge の形と migration PR の bookmark は PreToolUse hook `guard-pr-merge.sh` が、リモートブランチを消す push は `guard-push-delete.sh` が止める。止められたら理由に従い、別の形で回避しない。
-- token は印字しない・URL に埋めない・`gh auth login` しない。コンテナでは token は `./shell.sh` が開いたシェルにだけある。`git push` が 401 なら token の無いシェルなので、持ち主に `./shell.sh` を開いてもらう（回避しない）。ホストでは持ち主の gh の認証で push と PR 操作ができる。
+- token は印字しない・URL に埋めない・`gh auth` 系は使わない。コンテナでは token は `./shell.sh` が開いたシェルにだけある。`git push` が 401 なら token の無いシェルなので、持ち主に `./shell.sh` を開いてもらう（回避しない）。ホストでは持ち主の gh の認証で push と PR 操作ができる。
 - `.github/workflows/**` はコンテナの token では push できない（workflows 権限がない）。CI の中身は `package.json` の `ci` script と `.node-version` で変えられる。
