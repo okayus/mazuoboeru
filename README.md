@@ -50,11 +50,5 @@ mazuoboeru/
 
 ## ステータス
 
-🌿 **Phase 1 の最初の縦切り（ログイン→作成→公開→挑戦→サーバー採点）を実装・本番デプロイ済み**（残るは本番 OAuth の人手設定）── 主要な「決めること」を `/grill-with-docs` で詰め、
-[ADR-0001（認証）](docs/adr/0001-auth-via-oauth-and-pat.md)・
-[ADR-0002（公開フロー）](docs/adr/0002-publish-flow-and-edit-rules.md)・
-[ADR-0003（シークレット戦略）](docs/adr/0003-secrets-strategy.md)・
-[ADR-0004（UGC 描画）](docs/adr/0004-ugc-markdown-rendering.md) を記録。
-デプロイは **案A（Cloudflare Workers + D1）** を踏襲し、経路は **Workers Builds（キーレス）**。
-本番 URL は `https://mazuoboeru.shiraoka.workers.dev`（workers.dev 運用）。
-現況・残作業・長期計画（ロードマップ）は [docs/project-status.md](docs/project-status.md)、用語の正典は [CONTEXT.md](CONTEXT.md)。
+本番で稼働中（`https://mazuoboeru.shiraoka.workers.dev`。デプロイは Workers Builds、キーレス）。
+いまのフェーズ・残作業・ロードマップは [docs/project-status.md](docs/project-status.md)、後戻りしにくい決定は [docs/adr/](docs/adr/)、用語は [CONTEXT.md](CONTEXT.md)。
