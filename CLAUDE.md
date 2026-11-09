@@ -1,92 +1,44 @@
-# まず覚える (mazuoboeru) — プロジェクト指示
+# まず覚える (mazuoboeru)
 
-> 学んだことをクイズ化して反復で覚える学習 Web アプリ。**クイズは必ず公開**され、
-> **全ユーザーが他人のクイズに挑戦できる**＝マルチユーザーの公開サービス。
+学んだことをクイズにして反復で覚える学習 Web アプリ。クイズは必ず公開され、誰でも他人のクイズに挑戦できる。kokemusu（1 人用・各自セルフホスト）と違い、1 つの共有デプロイを大勢が使う公開サービスなので、UGC の安全な表示とモデレーションが中心の課題になる。用語は `CONTEXT.md`、決定は `docs/adr/`、セキュリティは `docs/security.md`（最重要）、現況とロードマップは `docs/project-status.md`。
 
-このファイルは、コンテナ内も含めどの Claude セッションでも最初に読む前提の要約。
-詳細は `docs/`（このファイルは目次＋働き方の規約）。
+## 進め方
 
-## まず読むドキュメント
+- 新機能・フェーズ・計画の相談では、`docs/project-status.md` を読んで現在地の要約と候補の方針 2〜3 個（それぞれのトレードオフを一言）を示し、方針の指示を待つ。status を読んだことは着手の許可ではない。方針が決まったら `/grill-with-docs` で `CONTEXT.md` と ADR に突き合わせ、用語は `CONTEXT.md`、後戻りしにくい決定は ADR に書いてから計画と実装に進む。status の質問や merge などの運用はこの限りでない。
+- `docs/project-status.md` は長い。見出しから要る節だけ読む。記述は遅れるので、本番の状態は同ファイルの「現況の確かめ方」で確かめる。
 
-- `README.md` — 概要と目次
-- `docs/project-status.md` — **プロジェクト現況（生きたステータス）**。いまどこにいて何が要るか。新セッションはこれで現在地を掴む（鵜呑みにせず実機確認）
-- `CONTEXT.md` — 用語集（`/grill-with-docs` 由来。混同を避けたい語彙の正典）
-- `docs/adr/` — 根幹判断の ADR（後戻りしにくい決定の理由つき記録）
-- `docs/concept.md` — 名前の由来（まず覚える）・「必ず公開」の思想
-- `docs/features.md` — 機能（クイズ作成・挑戦・採点・復習SRS・発見）
-- `docs/security.md` — セキュリティ（**最重要**：マルチユーザー・UGC のサニタイズ・モデレーション）
-- `docs/tech-stack.md` / `docs/data-model.md` — 技術選定とデータモデル
-- `docs/dev-environment.md` — 開発環境・Cloudflare認証・デプロイ骨格
+## 確定済みの決定（根拠は ADR）
 
-## このプロジェクトの本質（kokemusu との違いを忘れない）
+- クイズは必ず公開する（非公開の選択肢を作らない。ADR-0002）。公開するのはクイズ本体だけで、学習履歴・成績・メールアドレスは本人以外に見せない。
+- 採点と正誤判定はサーバーで行う。理由は正誤の単一の真実と回答後の解説の開示で、不正防止ではない（ランキングも公開スコアも無い。ADR-0010）。
+- 他人のクイズは react-markdown + rehype-sanitize で描画し、生の HTML は描画しない（ADR-0004。`dangerouslySetInnerHTML` と `rehype-raw` は lint も止める）。
+- デプロイは Workers Builds（キーレス）で、GitHub に Cloudflare の資格情報を置かない。コンテナで `wrangler login` しない。`main` は ruleset（PR 必須・required check `ci`・bypass なし）。リポは public で、秘密・`.dev.vars`・`.docker/sandbox.env`・本番 D1 の dump はコミットしない（ADR-0003）。
+- 本番 URL は `https://mazuoboeru.shiraoka.workers.dev`（subdomain の無い URL は存在しない）。
+- kokemusu への日次ダイジェスト（ADR-0017）は Service Binding `KOKEMUSU` で送る（同じ workers.dev の Worker へは global `fetch()` が届かない）。受け側の契約は転記せず、vendoring した `apps/web/worker/domain/kokemusu-posts.schema.json` を読む（更新は `apps/web` で `pnpm kokemusu:schema`）。
 
-- **マルチユーザーの公開サービス**。1つの共有サービスを大勢が使う（kokemusu の「各自セルフホスト・完全プライベート」とは対極）。
-- **クイズは必ず公開**（非公開オプションを作らない）。これは意図的な設計制約（理由は `docs/concept.md`、ADR 候補）。
-- **他人のコンテンツ（UGC）を表示する** → XSS サニタイズ・モデレーションが中心課題。
-- 公開なのはクイズ本体。**個人の学習履歴・成績・メールアドレスは非公開**。
+## コマンドと罠
 
-## 確定済み / 既定の決定（2026-06-08 グリル後）
+- pnpm はコンテナで走らせる。ルートで `pnpm dev --host`（コンテナ 5173 → ホスト 5373。`--host` が無いとホストから届かない）、`pnpm check`、`pnpm build`。CI と同じ検査（全パッケージの型・lint・format・build・test）は `pnpm run ci`（`pnpm ci` は pnpm 本体の別コマンドになる）。e2e は `pnpm e2e`（CI は走らせない。`apps/web/e2e/README.md`）。
+- lint と format はパッケージごとに `pnpm --filter @mazuoboeru/web lint`（`fmt`・`fmt:check` も同じ形。vp はパッケージのディレクトリで動かす）。
+- ホストで開いたセッションでは、編集と git はホストで行い、pnpm はコンテナに投げる（起動は `./up.sh`、実行は `docker exec mazuoboeru-dev pnpm run ci`）。`./up.sh` の直後は pnpm の入れ直しが終わっていないので、`docker exec mazuoboeru-dev pnpm --version` が通るまで待つ。`node_modules` がずれていれば、先にコンテナで `pnpm install --frozen-lockfile`。
+- ホストで pnpm・npx・node のパッケージスクリプトを走らせない。依存のコードが隔離の外で動き、作業ツリーを共有するコンテナの `node_modules` も壊れる。CLI の npm publish だけは持ち主がホストで手で行う（`docs/dev-environment.md`）。
+- ローカルの変数は `apps/web/.dev.vars`（`.dev.vars.example` をコピーする）。
+- API ルートは Hono のメソッドチェーンで定義する。別々の文で書くと型が route に乗らず、クライアントの `hc<AppType>` の推論が壊れる（ADR-0011）。
+- migration（`apps/web/drizzle/`）は main への merge で本番 D1 に適用される（Workers Builds の deploy command が `wrangler d1 migrations apply --remote` を deploy の前に走らせる。手で当てない）。書く前に okayus-skills の skill `cloudflare-d1-drizzle-migration` を読む。
+- 本番に載ったかは、main の commit の check-run `Workers Builds: mazuoboeru` が success かで確かめる（`curl -s https://api.github.com/repos/okayus/mazuoboeru/commits/<sha>/check-runs`、認証なし）。`docs/` と `*.md` だけの commit ではビルドが走らない。
 
-- **デプロイ: 案A = Cloudflare Workers + D1**（kokemusu を踏襲。ただし**単一の共有デプロイ**＝SaaS であって per-user セルフホストではない）。
-- **フロント = React 19 + Vite + TS / API = Hono / DB = D1 + Drizzle**。
-- 開発はサンドボックス（Docker + egress ファイアウォール）内。ホスト側 dev ポートは **5373**（5173/5273 は他プロジェクトと衝突）。
-- **認証**: Web は OAuth (Google + GitHub)、CLI/AI エージェントは PAT (Bearer)。`arctic` + 自前 middleware。Passkey は MVP 範囲外（Phase 2 候補）。同一 verified email は自動リンク。詳細: `docs/adr/0001-auth-via-oauth-and-pat.md`。
-- **本番ドメイン**: workers.dev 運用（Day 1 固定方針）。**実 URL は `mazuoboeru.shiraoka.workers.dev`**（account subdomain 由来。2026-06-12 に account subdomain を `toshiaki-mukai-9981` → `shiraoka` へ改名済み＝OAuth redirect URI 登録前に完了、旧 URL は失効。設計時表記の `mazuoboeru.workers.dev` は存在しない点に注意）。custom domain への移行は redirect URI 追加で後付け可。
-- **「必ず公開」**: 状態は `draft` / `published` / `hidden` の3値、`private` なし。`draft` → `published` は明示・不可逆。公開後の編集は**構造編集も可**（採点可能である限りサーバ受理・422 編集ゲート。設問の削除は不可逆の `retired` 状態遷移＝2026-07-07 本番反映）、削除はソフト。詳細: `docs/adr/0002-publish-flow-and-edit-rules.md`・`docs/adr/0014-published-quiz-editing-and-question-retirement.md`。
-- **設問形式**: `mcq_single` + `mcq_multi`（strict 採点）+ `short`（一問一答・正規化採点＝ADR-0012、2026-06-22 本番反映）。`boolean` / `cloze` は候補。**type は編集で変更不可**（retire→新設問で表現＝ADR-0014）。
-- **タグはフラット**（2026-08-21・[ADR-0016](docs/adr/0016-flat-tags-related-tags-derived-from-quizzes.md)）: タグ間の関係は**保存しない**（ADR-0007 の `tag_edge` タクソノミは撤回・DROP）。関連は **Related Tags**＝公開クイズに一緒に付いている事実（共起）から読み時に導出（純粋関数は `packages/core`）。絞り込みは `?tags=a&tags=b` の AND 完全一致。**タグ探索グラフ `#/tags`**（`GET /api/public/tag-graph` の対応表＋クライアントで `tagGraph`／`itemsWithAllTags` 導出・d3-force＋React SVG・2026-08-21 実装）。
-- **日次ダイジェスト push（2026-09-03・[ADR-0017](docs/adr/0017-daily-digest-push-to-kokemusu.md)）**: 毎日 00:15 JST の cron（`"15 15 * * *"` UTC・`event.cron` ディスパッチ）が**前日 JST 暦日**の Daily Digest（サービス全体の集計のみ・個人特定情報なし＝CONTEXT.md）を作者の日記 kokemusu へ POST（PAT Bearer）。純粋ビルダー＋throw しない境界・リトライなし（受け側に Idempotency-Key 無し）・活動ゼロの日は送らない・env（`KOKEMUSU_URL`/`KOKEMUSU_PAT`）未設定はスキップ。**経路は Service Binding `KOKEMUSU`（2026-09-30・ADR-0017 補記）**: 同じ workers.dev の Worker へは global `fetch()` が届かず（error 1042。`global_fetch_strictly_public` を入れた版でも本番で一度も届かなかった）、`env.KOKEMUSU.fetch` で送る。binding 未設定もスキップ。**受け側の契約は転記しない（2026-09-09・ADR-0017 補記）**: 正は kokemusu の `docs/senders.md`（public リポ。sandbox から `curl https://raw.githubusercontent.com/okayus/kokemusu/main/docs/senders.md` で読める）と、vendoring した `apps/web/worker/domain/kokemusu-posts.schema.json`（`pnpm kokemusu:schema` で更新。`kokemusu-post.test.ts` が builder の出力を `z.fromJSONSchema` で検証）。転記した `title` が受け側の廃止（kokemusu ADR-0006）から 3 日で 400 になった事故が出典。**石のタグ（2026-09-11・ADR-0017 補記）**: `まず覚える`（出所。`mazuoboeru` は送らない）＋その日の活動に関わった公開クイズのタグ（回答のあった ∪ 公開された・送信時点で公開中）、`kind` は常に `both`。上限は転記せず vendoring した schema の `tags.maxItems` を読み、超える日は `まず覚える` 固定＋回答数順＋名前順で切る（受け側の 20 は編集上の数＝kokemusu 側で 99（D1 bound parameter 100 − `user_id`）へ引き上げ済み・2026-09-12 に再 vendoring 済み）。
-- **モデレーション MVP**: 通報チャネル（ボタン + endpoint + テーブル + rate limit）のみ。Discord 通知・admin UI は Phase 2〜4。
-- **リポ構成**: pnpm workspaces（globs: `apps/*` `packages/*`）、パッケージ名 `@mazuoboeru/*`。
-  - **歩く骨格では `apps/web`（`@mazuoboeru/web`）に SPA＋Worker＋wrangler.jsonc を同梱**（`@cloudflare/vite-plugin` が web と worker を1つの Worker にビルドするため）。設計初期に想定した独立 `server/` は apps/web/worker に内包＝**当面 `server/` パッケージは作らない**（要なら後で分離検討。2026-06-11 確定、設計ドキュメント側も同梱に統一済み）。`apps/cli`（`@mazuoboeru/cli`・PAT でクイズ作成/編集/公開する薄い CLI `mzo`）は **2026-06-15 に最小実装**（node24 ネイティブ実行＝[ADR-0005](docs/adr/0005-node24-native-ts-execution.md)）、**npm 配信は 2026-07-13 実装**（`vp pack` バンドル・ホスト手動 publish・リポ全体 MIT 化＝[ADR-0015](docs/adr/0015-cli-npm-distribution.md)）。`packages/core`（`@mazuoboeru/core`）は **2026-08-21 に新設**＝クライアント/サーバ共有の純粋関数（Related Tags・[ADR-0016](docs/adr/0016-flat-tags-related-tags-derived-from-quizzes.md)）。`packages/db` はロジック発生時に追加（skeleton 方針）。
-  - **node: host/sandbox/CI とも node24 に統一**（2026-06-15・[ADR-0005](docs/adr/0005-node24-native-ts-execution.md)）。`.docker/Dockerfile` `FROM node:24`／`ci.yml` `node-version: 24`。これで `apps/cli` の `.ts` を**ビルド/トランスパイル無しでネイティブ実行**できる（native type stripping は node≥22.18）。ルート `engines` は `>=20` のままだが CLI は実質 node24 前提。`.docker/Dockerfile` は okayus-skills の docker-sandbox スキル（node20 base）から乖離する点に注意（drift は本リポ側が持つ）。**claude と pnpm はコンテナ起動時に compose の command が自動更新**（`npm i -g @anthropic-ai/claude-code@latest pnpm@9.15.0`、2026-06-12 導入。claude の native auto-updater は配布元 downloads.claude.ai が egress allowlist 外のためコンテナ内では動かず、npm 経由が正。corepack は /usr/local/bin 権限不足で不可のまま）。
-  - **コンテナ内 claude の既定モデルは Fable 5**（compose の `ANTHROPIC_MODEL=claude-fable-5`、2026-06-12）。`/model` ピッカーの品揃えは feature flag 依存で、**決め手は env**: `DISABLE_TELEMETRY` を解除（個別フラグ分解）するとピッカーに Fable が出る（flag は api.anthropic.com 経由で届く＝実測。Statsig への egress 不達でも表示された）。sentry・自動更新・/feedback は引き続き無効（`DISABLE_ERROR_REPORTING` / `DISABLE_AUTOUPDATER` / `DISABLE_FEEDBACK_COMMAND`、更新は起動時 npm のみ）。
-  - **コンテナ内 claude は bypassPermissions が既定**（2026-06-12。起動時に compose の command が**コンテナ側 user settings**＝named volume へ `permissions.defaultMode` を書き込む。リポ共有 settings に入れない＝ホスト側セッションは通常プロンプトのまま）。安全根拠: egress firewall + main の ruleset（PR + CI + bypass なし）+ 1 リポ限定・Workflows なしの token scope + deny（force push / `main` / `gh auth` / `gh api`。deny は bypass モードでも有効、allow は bypass では無効）が境界（2026-08-22 に relay から移行、ADR-0003 追記）。
-- **Claude Code ツールセット**（2026-06-08 整備）:
-  - `.claude/settings.json`（プロジェクト共有）: pnpm / wrangler dev / wrangler d1 / git / gh の日常コマンドを allowlist（`git push origin claude/*`・`gh pr create/view/checks` を含む）。deny は **force push・`main` への push・リモートブランチ削除・`gh auth`・`gh api`**（2026-08-22、relay からの移行で `git push` 一括 deny を個別化。2026-08-29 に `gh pr merge` を deny から外し `--auto --squash` 形のみ allow）。**コンテナ内の `gh` は `GH_TOKEN`（1 リポ限定 fine-grained PAT）で動く**。2026-06-12 の「GH_TOKEN を入れるのは secret-zero に反する」は ADR-0003 追記で改め、「1 リポ・Workflows なし・90 日の token を env にだけ」へ緩和した。
-  - `.mcp.json`（プロジェクト共有）: Cloudflare 公式 MCP は **`cloudflare-docs` の1つだけ**（認証不要・ドキュメント検索）。bindings/builds/observability は wrangler と機能が被り、認証(OAuth)の callback がコンテナで不安定なので**入れない**（2026-06-08 に docs-only へ trim）。アカウント操作は wrangler（settings で許可済み）で行う。
-  - サンドボックス firewall に `developers.cloudflare.com` と `docs.mcp.cloudflare.com` を追加（`.docker/init-firewall.sh`）。Statsig ドメイン群（statsig.com 等5件、telemetry 送信用）と**本番ホスト `mazuoboeru.shiraoka.workers.dev`**（コンテナ内からデプロイ検証 `curl -s .../health` ができる。2026-06-12）は **optional 扱い**で追加（解決失敗は警告のみでコンテナは起動継続。なお `statsig.anthropic.com` は A レコード非実在＝旧コメントの誤情報なので使わない）。**反映には `docker compose down && docker compose build && docker compose up -d`（プロジェクトディレクトリで、`-f` を付けず＝override 自動ロード）が必要**。
-  - `init-firewall.sh` の canonical 差分は「dig リトライ」「`ipset -exist`」「optional ドメイン（statsig・非致命）」の3点。
-- **シークレット戦略（2026-06-11、ADR-0003）**: デプロイは **Workers Builds**（キーレス。GitHub Secrets に CF トークンを置かない。D1 Edit 入りカスタムビルドトークンを CF 側 Build 設定に登録）。push/PR は **2026-08-22 から sandbox 自身が 1 リポ限定 fine-grained PAT で行う**（1Password → `./shell.sh` が開くシェルにだけ注入。2026-08-23 改訂前は `./up.sh` でコンテナ env へ。ADR-0003 追記。それ以前のホスト側リレー + GitHub App は戻し道として 1 か月保持）。リポは **public**・main は ruleset 保護（PR 必須 + required check = `ci`）。本番アプリ秘密は Cloudflare Worker Secrets（コードは名前参照のみ）、dev は dev 専用 OAuth クライアントを `.dev.vars`。**コンテナ内 `wrangler login` はしない**（ローカルモード専用）。詳細: `docs/adr/0003-secrets-strategy.md`。**docs-only の変更はデプロイしない**＝Workers Builds の Build Watch Paths で `docs/*`・`*.md` を exclude し、docs だけの push はビルド/デプロイをスキップ（exclude 優先・混在コミットはビルド／設定はダッシュボード専用＝Builds API は wrangler OAuth スコープ外。2026-06-19 導入）。**CI の `ci` は required check なので docs でも走らせる**（`paths-ignore` で飛ばすと required が pending のままになり relay の merge が詰まる罠を回避＝CD と CI は独立に扱う）。
-- **未決定（持ち越し）**: 短答採点の正規化方針（Phase 2 で `short` 追加時に再開）、custom domain の購入と移行タイミング（なお `mazuoboeru.workers.dev` のような subdomain なし URL は構造上不可＝docs 確認済み、きれいな URL の正解は custom domain）。
-- **account subdomain 改名は完了**（2026-06-12: `toshiaki-mukai-9981` → `shiraoka`、nyalog 側の都合で実施。OAuth redirect URI 登録前＝期限内に完了。mazuoboeru への影響は URL 参照の更新のみで、認証・データへの影響なし）。
+## 書き方
 
-## 働き方の規約（重要）
+- TypeScript は関数だけで書き、`class` を使わない。ドメインロジックは純粋関数に寄せ、I/O は境界に置く。
+- API は記憶で断定せず、公式 docs で確かめる（`cloudflare-docs` MCP、各サイトの `/llms.txt`）。コンテナの firewall は allowlist 外の URL を通さない。Claude Code 自体の機能・設定は https://code.claude.com/docs/llms.txt で確かめる。
 
-- **着手フロー（status → 一旦返す → grill → 計画 → 実装）**: 新機能/フェーズ/計画タスクは、まず `docs/project-status.md` を読み、**現在地の要約＋候補方針 2-3（各トレードオフ一言）を提示して一旦ユーザーに返し、方針の指示を待つ**。**status を読んだ＝着手許可ではない**（この時点で grill・詳細計画・コード編集に進まない）。方針が確定したら `/grill-with-docs` でドメインモデル・`CONTEXT.md`・`docs/adr` と突き合わせ、用語は CONTEXT.md・後戻りしにくい決定は ADR に落としてから計画→実装。純粋な status 質問・運用操作（merge/status 更新等）はこの限りでない。〔境界で同趣旨を注入するフックあり: PostToolUse `handback-after-status`（status 読了時）＋ UserPromptSubmit `suggest-grill-on-planning`（計画意図検出時）。自動メモリ `pause-after-status-before-planning`〕
-- **TypeScript は関数のみで書く。`class` を使わない。** ドメインロジックは純粋関数、I/O は境界へ。
-- **デプロイ基盤を先に通してからロジックを載せる**（「歩く骨格」: `main` push → 本番 `/health` 200 ＆ SPA 表示）。
-- **git: コンテナ内で `claude/<topic>` に commit し、自分で `git push -u origin claude/<topic>` → `gh pr create --fill` まで行い、PR の URL を報告する**（2026-08-22、ADR-0003 追記＝relay からの移行）。**mazuoboeru 1 リポ限定の GitHub fine-grained PAT**（Contents + Pull requests、Workflows なし、90 日）は **`./shell.sh` が開くシェルにだけ**注入される（= `op read で op:// 参照を解決 → docker exec -e GH_TOKEN mazuoboeru-dev …`。2026-08-23 改訂。コンテナ設定には載せない＝`./up.sh` は素の `docker compose up -d` で資格情報ゼロ・冪等）。credential helper は env を読む inline 関数、`gh` は `GH_TOKEN` を直接読む。**`docker exec` で直に入ったシェルに token は無い**（fail closed）。`git push` が `401` を返したら token 無しのシェルにいる＝人間に `./shell.sh` を開いてもらう（回避しようとしない）。PR 本文の修正は `gh pr comment` で（`gh pr edit` は image の古い `gh` が Projects classic の GraphQL エラーで落ちる）。**コンテナ内から `docker compose up` は打たない**。main は ruleset（PR + CI + bypass なし）が境界で、`git push` の allow/deny は慣習の担保。**token は印字しない（`echo $GH_TOKEN` 禁止）・`gh auth login` しない・URL に埋めない。** `.github/workflows/**` の変更は人間がホストから push する（token に `workflows` 権限が無く remote が拒否する）。旧リレー（`mazuoboeru-relay.timer`・GitHub App・`~/.config/mazuoboeru-relay/`）は停止して戻し道として 1 か月保持。手順の正典: okayus-skills `sandboxed-agent-github-token-via-1password`。
-  - PR・CI の状態は **`gh pr view` / `gh pr checks`** で見る（fine-grained PAT は Checks REST API を呼べないので `gh api .../check-runs` は使えない＝`gh api` は deny）。main commit の Workers Builds check-run は従来どおり**未認証 `curl -s https://api.github.com/repos/okayus/mazuoboeru/commits/<sha>/check-runs`**（public リポ・60 req/h。allowlist 済み、宛先の強制は egress firewall）。
-  - **merge**: CI green を確認したら `gh pr merge --auto --squash <PR番号>` で auto-merge を arm してよい（2026-08-29、ADR-0003 追記。required check `ci` が通ったときだけ GitHub が squash merge する。`--auto` なしの即時 merge と `gh api` は使わない）。**例外 — `apps/web/drizzle/`（migration。merge = Workers Builds の deploy command で本番 D1 に適用）・`.github/**`・`.claude/**`・`docs/adr/**` を触る PR、および迷う変更・影響の大きい変更は arm せず人間の merge を待つ**。`Relay-Merge: yes` トレーラーは 2026-08-22 に廃止（付けても何も起きない）。
-  - merge 後は `git fetch --prune` でローカルの `claude/*` を整理する（リレーが消していた後始末は無くなった。リポは `delete_branch_on_merge` 済み）。
-- 採点・正誤判定は**必ずサーバー側**で。根拠は **正誤の単一の真実・解説は回答後に開示（即時フィードバック）・読みモデルの分離**であって**競争的 anti-cheat ではない**（ランキング/公開スコアが無いので「カンニング/不正防止」は動機にしない＝[ADR-0010](docs/adr/0010-server-side-grading-rationale.md)）。
-- API ルートは Hono RPC のため**メソッドチェーンで定義**する（`new Hono<Env>().get(...).post(...)`／分離文だと型が route に乗らず `hc<AppType>` 推論が壊れる）。クライアント（`apps/web/src/api.ts`）は応答 DTO を `hc<AppType>`＋`InferResponseType` で**サーバから導出**し二重定義しない。エラーは `worker/http/errors.ts` の `ApiErrorCode` union＋`apiError()` で返す（[ADR-0011](docs/adr/0011-hono-rpc-typed-contract.md)）。
-- 他ユーザーのクイズ表示は**サニタイズ必須**: react-markdown ＋ rehype-sanitize で AST 描画し、生 HTML は描画しない（`dangerouslySetInnerHTML`・`rehype-raw` は使わない。`docs/adr/0004-ugc-markdown-rendering.md`）。画像・mermaid は MVP では描画しない。
-- Claude Code 自体の機能・設定で不明な点は https://code.claude.com/docs/llms.txt を WebFetch して確認する。
+## git と merge
 
-## 参照スキル（okayus-skills）
-
-Cloudflare 関連手順は `okayus-skills` のスキルに集約（リポジトリ外。コンテナには override マウントで `~/.claude/skills:ro` として見える）。
-
-- `claude-code-docker-sandbox` — 開発サンドボックス（構築済み）
-- `cloudflare-workers-deploy-skeleton` — SPA+API+Cron の歩く骨格（生成済み。デプロイ経路は ADR-0003 で Workers Builds に変更）
-- `cloudflare-api-token-permissions` — CI デプロイ用トークンの最小権限（ADR-0003 後はフォールバック専用）
-- `cloudflare-d1-drizzle-migration` — D1 で drizzle-kit を安全に（実スキーマ投入時に必読）
-- `cloudflare-workers-e2e-playwright` — e2e（認証含む）
-- `cloudflare-workers-bot-scan-defense` — 認証/投稿 route のレート制限（**公開サービスなので重要**）
-- `cloudflare-d1-weekly-backup-via-pr` — D1 週次バックアップ
-- `cloudflare-workers-builds-keyless-deploy` — Workers Builds キーレスデプロイ（本プロジェクトの ADR-0003 で確立し還元）
-- `sandboxed-agent-git-relay` — サンドボックス agent の push/PR ホストリレー（同上。2026-08-22 に停止・戻し道として 1 か月保持）
-- `sandboxed-agent-github-token-via-1password` — sandbox へ 1 リポ限定 GitHub token を 1Password で注入（**現行の push/PR 経路**。本リポが最初の適用＝skill の UNVERIFIED の書き戻し先）
-
-## 次のアクション
-
-1. ~~okayus-skills 確認＆再ビルド、firewall 反映~~ → **完了**（2026-06-08）。
-2. ~~MCP の認証~~ → **完了/確定**（`cloudflare-docs` のみ・認証不要・✓ Connected）。
-3. ~~シークレット戦略の調査・決定・ドキュメント整合~~ → **完了**（2026-06-11、`docs/adr/0003-secrets-strategy.md`。deploy.yml → ci.yml 化済み）。
-4. ~~Phase B（人手セレモニー）~~ → **完了**（2026-06-11）: リポ https://github.com/okayus/mazuoboeru（public・main ruleset 保護・CI green）／ D1 `mazuoboeru-db` 作成・`database_id` 反映済み／ GitHub App `mazuoboeru-relay`（App ID 4024233、鍵と設定はホストの `~/.config/mazuoboeru-relay/`）／ Workers Builds 接続済み（root `apps/web`・D1 Edit 入りカスタムトークン）→ **本番 `/health` 200**。
-5. ~~Phase C（エージェント）~~ → **完了**（2026-06-11）: ホスト側リレー `mazuoboeru-relay` 稼働（systemd user timer 60秒・`~/.config/mazuoboeru-relay/`）。無人 E2E 実証済み（コンテナ内 commit → 自動 push → PR #1 → CI green → 人間が merge → Workers Builds デプロイ）。deny 緩和・規約最終化・okayus-skills 還元済み。
-6. **Phase 1 着手**（`docs/project-status.md` §ロードマップ の最初の縦切り: Google ログイン → クイズ作成 → 公開 → 別アカウントで挑戦 → サーバー採点）。**着手前に account subdomain を確定**（未決定欄参照。OAuth redirect URI と ORIGIN が依存）。
-
-作る前の考慮事項の整理には `/grill-with-docs` を使い、用語を `CONTEXT.md`・後戻りしにくい決定を `docs/adr/` に落とす。
+- `claude/<topic>` に commit し、push して `gh pr create` する。PR の題は Conventional Commits で書く（commit が 2 つ以上だと `--fill` の題がブランチ名になる）。PR 本文の修正は `gh pr comment` で行う（`gh pr edit` はコンテナの古い gh で落ちる）。PR と CI の状態は `gh pr view` と `gh pr checks` で見る。
+- CI が green になったのを確かめたら、`gh pr merge --auto --squash <PR番号>` で arm してよい（`--auto` は required check `ci` が通るまで merge を待たせる）。コンテナの gh（2.23）は、green で clean な PR への `--auto` を「Pull request is in clean status」で弾く。そのときだけ `gh pr merge --squash <PR番号>` を使う（hook が clean を確かめる）。それ以外の `--auto` なしの merge と `--admin` は使わない。
+- `apps/web/drizzle/`、`.github/**`、`.claude/**`、`docs/adr/**` を触る PR と、迷う変更・影響の大きい変更は、自分から arm しない。持ち主が差分を見たうえで merge を頼んだときだけ arm する（PR ができる前の「merge まで進めて」は含まない）。
+- migration の PR はさらに、merge の直前（24 時間以内）に持ち主がホストで `node ~/.config/d1-backup/d1-bookmark.mjs mazuoboeru <PR番号>` を実行し、D1 Time Travel の bookmark を PR にコメントするまで arm しない（コンテナには Cloudflare の資格情報がない）。bookmark のコメントは持ち主がこのコマンドで付けるもので、自分では投稿しない。
+- 既存行の書き換え・テーブルの再構築・DROP を含む migration なら、戻し方を書く（PR を作るときは本文に、作った後なら `gh pr comment` で）。
+- merge の形と migration PR の bookmark は PreToolUse hook `guard-pr-merge.sh` が、リモートブランチを消す push は `guard-push-delete.sh` が止める。止められたら理由に従い、別の形で回避しない。
+- token は印字しない・URL に埋めない・`gh auth` 系は使わない。コンテナでは token は `./shell.sh` が開いたシェルにだけある。`git push` が 401 なら token の無いシェルなので、持ち主に `./shell.sh` を開いてもらう（回避しない）。ホストでは持ち主の gh の認証で push と PR 操作ができる。
+- `.github/workflows/**` はコンテナの token では push できない（workflows 権限がない）。CI の中身は `package.json` の `ci` script と `.node-version` で変えられる。

@@ -33,8 +33,9 @@ docker compose down && docker compose build && docker compose up -d
 > "browser not found"). The container runs Chromium with `--no-sandbox` (gated on
 > `DEVCONTAINER`) because it lacks the `SYS_ADMIN` cap; the host keeps the full sandbox.
 
-**On the host (no devcontainer).** One-time `pnpm --filter @mazuoboeru/web exec playwright
-install chromium`, then `pnpm e2e`.
+**Not on the host.** Don't install Playwright or run `pnpm` on the host: dependency code
+would run outside the sandbox, and the host shares this `node_modules` with the container.
+From a host session, run it in the container: `docker exec mazuoboeru-dev pnpm e2e`.
 
 `pnpm e2e` is self-contained either way: its `webServer` runs `e2e:server`, which
 **builds**, **migrates + seeds** a dedicated local D1 (`node e2e/seed.ts`), pins
