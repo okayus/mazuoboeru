@@ -1,6 +1,6 @@
 # e2e (Playwright)
 
-Phase 1 vertical-slice e2e for `@mazuoboeru/web`. Three specs, the scope the e2e skill
+Phase 1 vertical-slice e2e for `@mazuoboeru/web`. Four specs, the scope the e2e skill
 (`cloudflare-workers-e2e-playwright`) prescribes — e2e covers **wiring**, units cover
 semantics:
 
@@ -9,6 +9,7 @@ semantics:
 | `golden-path.spec.ts`            | session-cookie wiring, route→handler→D1→SPA round-trip, page-reload persistence, **cross-account** publish→challenge→**server grading** |
 | `authorization-boundary.spec.ts` | existence-hiding (a draft is 404, not 403, to non-authors and the public), 401 on author-only routes — i.e. Hono middleware mount order |
 | `security-headers.spec.ts`       | `app.use("*", securityHeaders)` riding every response (SPA shell, pure Worker route, API error)                                         |
+| `fatal.spec.ts`                  | `createRoot`'s `onUncaughtError` → `FatalScreen`: a render error (lazy chunk 404) leaves the reload screen, not a blank page            |
 
 ## Run it
 
@@ -94,5 +95,5 @@ this is why; keep everything on `127.0.0.1`.
 - `prepare-config.ts` — post-build: pin e2e vars + `dev.ip` + strip the `unsafe` ratelimit
   binding (it would proxy to a remote resource and hang every request locally)
 - `worker.e2e.vars` — ORIGIN/RP_ID for the e2e Worker (copied over `dist` `.dev.vars`)
-- `specs/*.spec.ts` — the three specs
+- `specs/*.spec.ts` — the four specs
 - `tsconfig.json` — `pnpm check:e2e`
